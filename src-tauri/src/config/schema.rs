@@ -73,7 +73,9 @@ pub struct LlmConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LlmProviderConfig {
-    /// 提供商: openai | claude | qwen | deepseek | ollama
+    /// API 格式: openai | anthropic
+    /// openai: 兼容 OpenAI /v1/chat/completions 格式（适用于 DeepSeek、通义千问、智谱、Ollama 等）
+    /// anthropic: Anthropic /v1/messages 格式（Claude 系列）
     pub provider: String,
     pub api_key: String,
     pub api_url: String,

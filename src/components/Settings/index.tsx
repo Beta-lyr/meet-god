@@ -2,12 +2,9 @@ import { useState } from "react";
 import { useConfig } from "../../hooks/useConfig";
 import type { AppConfig } from "../../types";
 
-const LLM_PROVIDERS = [
-  { value: "openai", label: "OpenAI", url: "https://api.openai.com/v1" },
-  { value: "deepseek", label: "DeepSeek", url: "https://api.deepseek.com/v1" },
-  { value: "qwen", label: "通义千问", url: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
-  { value: "zhipu", label: "智谱", url: "https://open.bigmodel.cn/api/paas/v4" },
-  { value: "ollama", label: "Ollama (本地)", url: "http://localhost:11434" },
+const LLM_FORMATS = [
+  { value: "openai", label: "OpenAI 格式", desc: "兼容 /v1/chat/completions（适用于 OpenAI、DeepSeek、通义千问、智谱、Ollama 等）" },
+  { value: "anthropic", label: "Anthropic 格式", desc: "Anthropic /v1/messages（Claude 系列）" },
 ];
 
 type Tab = "stt" | "llm" | "profile";
@@ -136,13 +133,19 @@ function LlmSettings({ config, onSave, saving }: { config: AppConfig; onSave: (u
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <Section title="主模型">
         <Select
-          label="服务商"
+          label="API 格式"
           value={primary.provider}
-          options={LLM_PROVIDERS.map((p) => ({ value: p.value, label: p.label }))}
-          onChange={(v) => {
-            const provider = LLM_PROVIDERS.find((p) => p.value === v);
-            handlePrimary({ provider: v, api_url: provider?.url ?? primary.api_url });
-          }}
+          options={LLM_FORMATS.map((f) => ({ value: f.value, label: f.label }))}
+          onChange={(v) => handlePrimary({ provider: v as AppConfig["llm"]["primary"]["provider"] })}
+        />
+        <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "-6px" }}>
+          {LLM_FORMATS.find((f) => f.value === primary.provider)?.desc}
+        </div>
+        <Input
+          label="API URL"
+          value={primary.api_url}
+          placeholder={primary.provider === "anthropic" ? "https://api.anthropic.com" : "https://api.openai.com/v1"}
+          onChange={(v) => handlePrimary({ api_url: v })}
         />
         <Input
           label="API Key"
@@ -152,15 +155,9 @@ function LlmSettings({ config, onSave, saving }: { config: AppConfig; onSave: (u
           onChange={(v) => handlePrimary({ api_key: v })}
         />
         <Input
-          label="API URL"
-          value={primary.api_url}
-          placeholder="https://api.openai.com/v1"
-          onChange={(v) => handlePrimary({ api_url: v })}
-        />
-        <Input
           label="模型"
           value={primary.model}
-          placeholder="gpt-4o-mini"
+          placeholder={primary.provider === "anthropic" ? "claude-sonnet-4-20250514" : "gpt-4o-mini"}
           onChange={(v) => handlePrimary({ model: v })}
         />
         <Input

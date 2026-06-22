@@ -55,7 +55,8 @@ export interface LlmConfig {
 }
 
 export interface LlmProviderConfig {
-  provider: string;
+  /** API 格式: "openai" | "anthropic" */
+  provider: "openai" | "anthropic";
   api_key: string;
   api_url: string;
   model: string;

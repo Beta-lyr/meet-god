@@ -20,17 +20,17 @@ pub trait LlmProvider: Send + Sync {
 }
 
 /// 根据配置创建 LLM Provider
+///
+/// 仅支持两种 API 格式：
+/// - openai: 兼容 OpenAI /v1/chat/completions（适用于绝大多数国内外模型）
+/// - anthropic: Anthropic /v1/messages（Claude 系列）
 pub fn create_provider(config: &super::super::config::schema::LlmProviderConfig) -> Box<dyn LlmProvider> {
     match config.provider.as_str() {
-        "openai" | "deepseek" | "qwen" | "zhipu" => {
-            Box::new(super::openai::OpenAiProvider::new(config))
-        }
-        "ollama" => {
-            // Ollama 兼容 OpenAI 格式
-            Box::new(super::openai::OpenAiProvider::new(config))
+        "anthropic" => {
+            Box::new(super::anthropic::AnthropicProvider::new(config))
         }
         _ => {
-            tracing::warn!("未知的 LLM provider: {}, 回退到 OpenAI 兼容模式", config.provider);
+            // 默认使用 OpenAI 兼容格式
             Box::new(super::openai::OpenAiProvider::new(config))
         }
     }

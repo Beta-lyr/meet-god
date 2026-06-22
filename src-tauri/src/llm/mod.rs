@@ -1,5 +1,6 @@
 pub mod provider;
 pub mod openai;
+pub mod anthropic;
 
 use serde::{Deserialize, Serialize};
 
@@ -11,7 +12,7 @@ pub struct Message {
 }
 
 /// 消息角色
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     System,

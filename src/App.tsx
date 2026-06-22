@@ -1,122 +1,81 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useState } from "react";
+import FloatingAnswer from "./components/FloatingAnswer";
+import Settings from "./components/Settings";
+import { useConfig } from "./hooks/useConfig";
+
+type View = "answer" | "settings";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [view, setView] = useState<View>("answer");
+  const { config, loading } = useConfig();
+
+  if (loading) {
+    return (
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100%",
+        color: "var(--text-secondary)",
+      }}>
+        加载中...
+      </div>
+    );
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+      {/* 顶部导航栏 */}
+      <nav style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "6px 12px",
+        background: "var(--bg-secondary)",
+        borderBottom: "1px solid var(--border)",
+        // 允许拖拽移动窗口
+        ["WebkitAppRegion" as string]: "drag",
+      }}>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            onClick={() => setView("answer")}
+            style={{
+              padding: "4px 12px",
+              background: view === "answer" ? "var(--accent)" : "transparent",
+              color: view === "answer" ? "#fff" : "var(--text-secondary)",
+              ["WebkitAppRegion" as string]: "no-drag",
+            }}
+          >
+            答案
+          </button>
+          <button
+            onClick={() => setView("settings")}
+            style={{
+              padding: "4px 12px",
+              background: view === "settings" ? "var(--accent)" : "transparent",
+              color: view === "settings" ? "#fff" : "var(--text-secondary)",
+              ["WebkitAppRegion" as string]: "no-drag",
+            }}
+          >
+            设置
+          </button>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
+        <div style={{
+          fontSize: "11px",
+          color: "var(--text-muted)",
+          ["WebkitAppRegion" as string]: "no-drag",
+        }}>
+          {config?.stt?.provider === "whisper-local" ? "本地" : "云端"} STT
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+      </nav>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      {/* 内容区 */}
+      <div style={{ flex: 1, overflow: "hidden" }}>
+        {view === "answer" && <FloatingAnswer />}
+        {view === "settings" && <Settings />}
+      </div>
+    </div>
+  );
 }
 
-export default App
+export default App;

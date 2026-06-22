@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { usePipeline } from "../../hooks/usePipeline";
 
 export default function FloatingAnswer() {
@@ -12,16 +12,50 @@ export default function FloatingAnswer() {
     toggleMute,
     sendText,
     clearAnswers,
+    downloadModel,
+    getModelStatus,
   } = usePipeline();
 
   const [inputText, setInputText] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState("");
+  const [modelReady, setModelReady] = useState<boolean | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // 检查模型状态
+  useEffect(() => {
+    getModelStatus("base")
+      .then((s) => setModelReady(s.exists))
+      .catch(() => setModelReady(false));
+  }, [getModelStatus]);
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    setDownloadProgress("正在下载 Whisper base 模型 (~150MB)...");
+    try {
+      const result = await downloadModel("base");
+      setDownloadProgress(result);
+      setModelReady(true);
+    } catch (e) {
+      setDownloadProgress(`下载失败: ${e}`);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleStart = async () => {
+    if (modelReady === false) {
+      // 模型不存在，提示下载
+      return;
+    }
+    await start();
   };
 
   const handleSend = () => {
@@ -67,12 +101,17 @@ export default function FloatingAnswer() {
 
         {/* 启动/停止按钮 */}
         <button
-          onClick={isRunning ? stop : start}
+          onClick={isRunning ? stop : handleStart}
+          disabled={modelReady === false && !isRunning}
           style={{
             padding: "4px 12px",
             fontSize: "12px",
-            background: isRunning ? "var(--error)" : "var(--success)",
-            color: "#fff",
+            background: isRunning
+              ? "var(--error)"
+              : modelReady === false
+                ? "var(--bg-card)"
+                : "var(--success)",
+            color: modelReady === false && !isRunning ? "var(--text-muted)" : "#fff",
           }}
         >
           {isRunning ? "停止" : "启动"}
@@ -122,6 +161,46 @@ export default function FloatingAnswer() {
           borderBottom: "1px solid var(--border)",
         }}>
           ⚠️ {error}
+        </div>
+      )}
+
+      {/* 模型未就绪提示 */}
+      {modelReady === false && !isRunning && (
+        <div style={{
+          padding: "16px",
+          margin: "12px",
+          background: "var(--bg-card)",
+          borderRadius: "var(--radius)",
+          border: "1px solid var(--warning)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "12px",
+        }}>
+          <div style={{ fontSize: "13px", color: "var(--text-secondary)", textAlign: "center" }}>
+            Whisper 语音识别模型尚未下载
+          </div>
+          <button
+            onClick={handleDownload}
+            disabled={isDownloading}
+            style={{
+              padding: "8px 24px",
+              fontSize: "13px",
+              background: isDownloading ? "var(--bg-card)" : "var(--accent)",
+              color: isDownloading ? "var(--text-muted)" : "#fff",
+            }}
+          >
+            {isDownloading ? "下载中..." : "下载模型 (~150MB)"}
+          </button>
+          {downloadProgress && (
+            <div style={{
+              fontSize: "12px",
+              color: downloadProgress.includes("失败") ? "var(--error)" : "var(--success)",
+              textAlign: "center",
+            }}>
+              {downloadProgress}
+            </div>
+          )}
         </div>
       )}
 

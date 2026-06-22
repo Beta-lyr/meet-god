@@ -1,5 +1,6 @@
 use super::{SttError, Transcription};
 use crate::config::schema::WhisperLocalConfig;
+use std::io::Write;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -61,6 +62,56 @@ impl WhisperLocalProvider {
             "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{}.bin",
             model_name
         )
+    }
+
+    /// 下载模型文件（同步，阻塞当前线程）
+    /// 返回下载的字节数
+    pub fn download_model(model_name: &str) -> Result<u64, String> {
+        let url = Self::model_download_url(model_name);
+        let path = Self::model_path(model_name);
+
+        // 创建目录
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("创建目录失败: {}", e))?;
+        }
+
+        tracing::info!("开始下载模型: {} -> {:?}", url, path);
+
+        // 下载文件
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(600))
+            .build()
+            .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+        let response = client
+            .get(&url)
+            .send()
+            .map_err(|e| format!("下载请求失败: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("下载失败，HTTP 状态码: {}", response.status()));
+        }
+
+        let total_size = response.content_length().unwrap_or(0);
+
+        // 写入临时文件，完成后重命名（避免中断导致文件损坏）
+        let temp_path = path.with_extension("bin.tmp");
+        let mut file = std::fs::File::create(&temp_path)
+            .map_err(|e| format!("创建文件失败: {}", e))?;
+
+        let bytes = response.bytes().map_err(|e| format!("读取响应失败: {}", e))?;
+        file.write_all(&bytes).map_err(|e| format!("写入文件失败: {}", e))?;
+        file.flush().map_err(|e| format!("刷新文件失败: {}", e))?;
+        drop(file);
+
+        // 重命名为正式文件
+        std::fs::rename(&temp_path, &path)
+            .map_err(|e| format!("重命名文件失败: {}", e))?;
+
+        let downloaded = if total_size > 0 { total_size } else { bytes.len() as u64 };
+        tracing::info!("模型下载完成: {} bytes", downloaded);
+        Ok(downloaded)
     }
 
     /// 使用 whisper-rs 进行推理（仅在启用 whisper-local feature 时可用）

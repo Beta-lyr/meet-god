@@ -141,6 +141,31 @@ export function usePipeline() {
     }
   }, []);
 
+  // 下载 Whisper 模型
+  const downloadModel = useCallback(async (modelName: string = "base") => {
+    try {
+      setError(null);
+      const result = await invoke<string>("download_whisper_model", { modelName });
+      return result;
+    } catch (e) {
+      setError(String(e));
+      throw e;
+    }
+  }, []);
+
+  // 获取模型状态
+  const getModelStatus = useCallback(async (modelName: string = "base") => {
+    try {
+      return await invoke<{ model: string; exists: boolean; path: string; download_url: string }>(
+        "get_whisper_model_status",
+        { modelName }
+      );
+    } catch (e) {
+      setError(String(e));
+      throw e;
+    }
+  }, []);
+
   // 刷新状态
   const refreshStatus = useCallback(async () => {
     try {
@@ -168,5 +193,7 @@ export function usePipeline() {
     sendText,
     refreshStatus,
     clearAnswers,
+    downloadModel,
+    getModelStatus,
   };
 }

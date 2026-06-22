@@ -130,6 +130,20 @@ fn get_whisper_model_status(model_name: String) -> serde_json::Value {
     })
 }
 
+/// 下载 Whisper 模型文件（异步，不阻塞 UI）
+#[tauri::command]
+async fn download_whisper_model(model_name: String) -> Result<String, String> {
+    let model_name_clone = model_name.clone();
+    // 在阻塞线程中运行下载（reqwest::blocking 不能在 async 中直接用）
+    let result = tokio::task::spawn_blocking(move || {
+        stt::whisper_local::WhisperLocalProvider::download_model(&model_name_clone)
+    })
+    .await
+    .map_err(|e| format!("任务执行失败: {}", e))?;
+
+    result.map(|bytes| format!("下载完成: {:.1} MB", bytes as f64 / 1024.0 / 1024.0))
+}
+
 /// 启动管线（音频捕获 + STT + LLM + 事件推送）
 #[tauri::command]
 async fn start_pipeline(
@@ -400,6 +414,7 @@ pub fn run() {
             set_always_on_top,
             set_window_opacity,
             get_whisper_model_status,
+            download_whisper_model,
             start_pipeline,
             stop_pipeline,
             toggle_mute,

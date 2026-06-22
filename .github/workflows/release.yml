@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ''
+            target: x86_64-pc-windows-msvc
+          # 以下平台暂未适配，取消注释即可启用
+          # - platform: macos-latest
+          #   args: '--target aarch64-apple-darwin'
+          #   target: aarch64-apple-darwin
+          # - platform: macos-latest
+          #   args: '--target x86_64-apple-darwin'
+          #   target: x86_64-apple-darwin
+          # - platform: ubuntu-22.04
+          #   args: ''
+          #   target: x86_64-unknown-linux-gnu
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install LLVM and Clang (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: '17'
+
+      - name: Install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libclang-dev cmake
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'Meet-God v__VERSION__'
+          releaseBody: |
+            ## Meet-God v__VERSION__
+
+            AI 面试辅助桌面应用 — 实时音频捕获 → 语音识别 → AI 生成参考答案
+
+            ### 下载
+            - **Windows**: 下载 `.msi` 或 `.exe` 安装包
+            - **macOS**: 下载 `.dmg` 文件（开发中）
+            - **Linux**: 下载 `.AppImage` 或 `.deb` 文件（开发中）
+
+            ### 快速开始
+            1. 安装并启动应用
+            2. 进入设置，配置 LLM 的 API Key 和 URL
+            3. 点击「下载模型」安装本地语音识别（可选）
+            4. 点击「启动」开始使用
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

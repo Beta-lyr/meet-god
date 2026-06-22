@@ -4,11 +4,20 @@
 
 > ⚠️ 本工具仅供技术学习和研究使用。用户在使用本工具时，应遵守所在地区的法律法规以及面试方的相关规定。开发者不对因使用本工具产生的任何后果承担责任。
 
+## 📥 下载
+
+前往 [Releases](../../releases) 页面下载最新版本：
+
+- **Windows**: `.msi` 或 `.exe` 安装包
+- **macOS / Linux**: 开发中
+
+> 首次启动后需在设置中配置 LLM 的 API Key 才能使用 AI 答案生成功能。
+
 ## ✨ 核心特性
 
 - 🎙️ **系统音频捕获** — 基于 WASAPI Loopback，无需虚拟声卡，直接捕获系统音频输出
 - 🗣️ **语音识别** — 内置 Whisper 本地模型（零配置可用），同时支持云端 STT API
-- 🤖 **AI 答案生成** — 支持 OpenAI / Claude / 通义千问 / DeepSeek / Ollama 等任意兼容 OpenAI 格式的大模型
+- 🤖 **AI 答案生成** — 支持 OpenAI 格式和 Anthropic 格式，用户自行配置 API URL 和 Key
 - 👻 **极致隐蔽** — 窗口对屏幕共享、截图、录屏不可见，全局快捷键一键隐藏
 - 🔒 **隐私优先** — 所有数据本地存储，不内置后端服务，API Key 由用户自行配置
 - 📝 **面试记录** — 自动记录面试过程，支持回溯和导出
@@ -22,10 +31,10 @@
 | 前端 | React + TypeScript + Vite |
 | 音频 | WASAPI Loopback (cpal) |
 | STT | Whisper (whisper-rs) + 云端 API |
-| LLM | OpenAI 兼容格式，多 Provider |
+| LLM | OpenAI 格式 / Anthropic 格式 |
 | 存储 | SQLite (rusqlite) |
 
-## 🚀 快速开始
+## 🚀 从源码构建
 
 ### 环境要求
 
@@ -73,19 +82,16 @@ npm run tauri build
 ### 语音识别 (STT)
 
 - **本地 Whisper**：首次启动自动下载模型（~150MB），零网络依赖
-- **云端 API**：支持 OpenAI Whisper API、讯飞语音等，需填写 API Key
+- **云端 API**：支持 OpenAI Whisper API 等，需填写 API Key 和 URL
 
 ### 大模型 (LLM)
 
-支持任意 OpenAI 兼容格式的 API：
+支持两种 API 格式，用户自行填写 URL 和 Key：
 
-| 服务商 | API URL |
-|--------|---------|
-| OpenAI | `https://api.openai.com/v1` |
-| DeepSeek | `https://api.deepseek.com/v1` |
-| 通义千问 | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
-| 智谱 | `https://open.bigmodel.cn/api/paas/v4` |
-| Ollama (本地) | `http://localhost:11434` |
+| API 格式 | 适用模型 |
+|---------|---------|
+| **OpenAI 格式** | OpenAI、DeepSeek、通义千问、智谱、Ollama 等兼容 `/v1/chat/completions` 的服务 |
+| **Anthropic 格式** | Claude 系列（`/v1/messages`） |
 
 ### 快捷键
 
@@ -113,6 +119,17 @@ meet-god/
 ├── models/               # Whisper 模型文件（gitignore）
 └── docs/                 # 文档
 ```
+
+## 📦 自动发布
+
+推送 `v*` 格式的 tag 会自动触发 GitHub Actions 构建安装包：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+构建完成后会自动在 [Releases](../../releases) 页面发布安装包。
 
 ## 📄 开源协议
 

@@ -53,7 +53,7 @@ thiserror = "1"
 # 启用方式: cargo build --features whisper-local
 # 或安装 LLVM: https://github.com/llvm/llvm-project/releases
 [dependencies.whisper-rs]
-version = "0.11"
+version = "0.16"
 optional = true
 
 [features]

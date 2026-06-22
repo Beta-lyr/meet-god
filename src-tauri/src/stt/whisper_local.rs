@@ -69,7 +69,7 @@ impl WhisperLocalProvider {
         use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
         let ctx = WhisperContext::new_with_params(
-            &self.model_path.to_string_lossy(),
+            self.model_path.as_path(),
             WhisperContextParameters::default(),
         )
         .map_err(|e| SttError::ModelLoadError(e.to_string()))?;
@@ -89,14 +89,13 @@ impl WhisperLocalProvider {
             .full(params, audio)
             .map_err(|e| SttError::RecognitionError(e.to_string()))?;
 
-        let num_segments = state
-            .full_n_segments()
-            .map_err(|e| SttError::RecognitionError(e.to_string()))?;
-
+        let num_segments = state.full_n_segments();
         let mut text = String::new();
         for i in 0..num_segments {
-            if let Ok(segment_text) = state.full_get_segment_text(i) {
-                text.push_str(&segment_text);
+            if let Some(segment) = state.get_segment(i) {
+                if let Ok(segment_text) = segment.to_str() {
+                    text.push_str(segment_text);
+                }
             }
         }
 

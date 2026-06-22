@@ -111,3 +111,11 @@ export interface AnswerEntry {
   timestamp: number;
   latency_ms: number;
 }
+
+/// 管线状态
+export interface PipelineStatus {
+  running: boolean;
+  audio_state: string;
+  stt_provider: string;
+  llm_provider: string;
+}

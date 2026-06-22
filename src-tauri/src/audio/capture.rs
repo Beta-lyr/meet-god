@@ -3,20 +3,13 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-/// 音频捕获管理器
-pub struct AudioCapture {
-    /// 捕获的音频数据缓冲区
-    buffer: Arc<Mutex<Vec<f32>>>,
-    /// 当前状态
-    state: Arc<Mutex<super::CaptureState>>,
-    /// 音频流（持有以保持活跃）
-    _stream: Option<cpal::Stream>,
-    /// 启动时间
-    start_time: Instant,
-    /// 系统采样率（捕获时的原始采样率）
-    system_sample_rate: u32,
-    /// 目标采样率（16kHz for Whisper）
-    target_sample_rate: u32,
+/// 获取系统默认音频输出设备名称
+pub fn get_default_output_device_name() -> Result<String> {
+    let host = cpal::default_host();
+    let device = host
+        .default_output_device()
+        .context("未找到默认音频输出设备")?;
+    device.name().context("无法获取设备名称")
 }
 
 /// 获取系统默认音频输出设备的采样率
@@ -31,109 +24,119 @@ pub fn get_default_output_sample_rate() -> Result<u32> {
     Ok(config.sample_rate().0)
 }
 
-/// 获取系统默认音频输出设备名称
-pub fn get_default_output_device_name() -> Result<String> {
+/// 包装 cpal::Stream 使其可以跨线程传递
+/// cpal::Stream 包含 *mut () 指针，标记为 !Send
+/// 但 cpal 的流实际上是线程安全的（回调在 cpal 内部线程执行）
+struct StreamWrapper(cpal::Stream);
+unsafe impl Send for StreamWrapper {}
+
+/// 音频捕获状态
+pub struct AudioCaptureHandle {
+    /// 捕获的音频数据缓冲区
+    pub buffer: Arc<Mutex<Vec<f32>>>,
+    /// 当前状态
+    pub state: Arc<Mutex<super::CaptureState>>,
+    /// 启动时间
+    start_time: Instant,
+}
+
+/// 启动音频捕获（在独立线程中运行，因为 cpal::Stream 不是 Send）
+pub fn start_capture(
+    target_sample_rate: u32,
+    buffer: Arc<Mutex<Vec<f32>>>,
+    state: Arc<Mutex<super::CaptureState>>,
+) -> Result<AudioCaptureHandle> {
     let host = cpal::default_host();
+
     let device = host
         .default_output_device()
         .context("未找到默认音频输出设备")?;
-    device.name().context("无法获取设备名称")
+
+    tracing::info!("音频设备: {}", device.name().unwrap_or_default());
+
+    let supported_config = device
+        .default_output_config()
+        .context("无法获取音频输出配置")?;
+
+    let system_sample_rate = supported_config.sample_rate().0;
+    let channels = supported_config.channels() as usize;
+    let sample_format = supported_config.sample_format();
+
+    tracing::info!(
+        "系统音频: {}Hz, {} 壁道, {:?}",
+        system_sample_rate,
+        channels,
+        sample_format
+    );
+
+    let config: cpal::StreamConfig = supported_config.into();
+    let buf_clone = buffer.clone();
+    let state_clone = state.clone();
+
+    // 根据采样格式构建对应的输入流
+    let stream = match sample_format {
+        cpal::SampleFormat::F32 => {
+            device.build_input_stream(
+                &config,
+                move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                    process_audio(data, channels, system_sample_rate, target_sample_rate, &buf_clone, &state_clone);
+                },
+                |err| tracing::error!("音频捕获错误: {}", err),
+                None,
+            )
+        }
+        cpal::SampleFormat::I16 => {
+            device.build_input_stream(
+                &config,
+                move |data: &[i16], _: &cpal::InputCallbackInfo| {
+                    let f32_data: Vec<f32> = data.iter().map(|&s| s as f32 / 32768.0).collect();
+                    process_audio(&f32_data, channels, system_sample_rate, target_sample_rate, &buf_clone, &state_clone);
+                },
+                |err| tracing::error!("音频捕获错误: {}", err),
+                None,
+            )
+        }
+        cpal::SampleFormat::U16 => {
+            device.build_input_stream(
+                &config,
+                move |data: &[u16], _: &cpal::InputCallbackInfo| {
+                    let f32_data: Vec<f32> = data.iter().map(|&s| (s as f32 - 32768.0) / 32768.0).collect();
+                    process_audio(&f32_data, channels, system_sample_rate, target_sample_rate, &buf_clone, &state_clone);
+                },
+                |err| tracing::error!("音频捕获错误: {}", err),
+                None,
+            )
+        }
+        _ => {
+            return Err(anyhow::anyhow!("不支持的音频格式: {:?}", sample_format));
+        }
+    }
+    .context("构建音频流失败")?;
+
+    stream.play().context("启动音频流失败")?;
+
+    // cpal::Stream 不是 Send，但它实际上是线程安全的
+    // 将其包装在 Send 类型中，然后移到独立线程持有
+    let wrapper = StreamWrapper(stream);
+    std::thread::spawn(move || {
+        let _w = wrapper;
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(3600));
+        }
+    });
+
+    *state.lock().unwrap() = super::CaptureState::Running;
+
+    tracing::info!("音频捕获已启动");
+
+    Ok(AudioCaptureHandle {
+        buffer,
+        state,
+        start_time: Instant::now(),
+    })
 }
 
-impl AudioCapture {
-    /// 创建新的音频捕获实例
-    pub fn new(target_sample_rate: u32) -> Self {
-        Self {
-            buffer: Arc::new(Mutex::new(Vec::new())),
-            state: Arc::new(Mutex::new(super::CaptureState::Idle)),
-            _stream: None,
-            start_time: Instant::now(),
-            system_sample_rate: 0,
-            target_sample_rate,
-        }
-    }
-
-    /// 开始捕获系统音频 (WASAPI Loopback)
-    pub fn start(&mut self) -> Result<()> {
-        let host = cpal::default_host();
-
-        let device = host
-            .default_output_device()
-            .context("未找到默认音频输出设备")?;
-
-        tracing::info!("音频设备: {}", device.name().unwrap_or_default());
-
-        let supported_config = device
-            .default_output_config()
-            .context("无法获取音频输出配置")?;
-
-        self.system_sample_rate = supported_config.sample_rate().0;
-        let channels = supported_config.channels() as usize;
-        let sample_format = supported_config.sample_format();
-
-        tracing::info!(
-            "系统音频: {}Hz, {} 壁道, {:?}",
-            self.system_sample_rate,
-            channels,
-            sample_format
-        );
-
-        let sample_rate = self.system_sample_rate;
-        let buffer = self.buffer.clone();
-        let state = self.state.clone();
-        let target_rate = self.target_sample_rate;
-        let config: cpal::StreamConfig = supported_config.into();
-
-        // 根据采样格式构建对应的输入流
-        let stream = match sample_format {
-            cpal::SampleFormat::F32 => {
-                device.build_input_stream(
-                    &config,
-                    move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                        process_audio(data, channels, sample_rate, target_rate, &buffer, &state);
-                    },
-                    |err| tracing::error!("音频捕获错误: {}", err),
-                    None,
-                )
-            }
-            cpal::SampleFormat::I16 => {
-                device.build_input_stream(
-                    &config,
-                    move |data: &[i16], _: &cpal::InputCallbackInfo| {
-                        let f32_data: Vec<f32> = data.iter().map(|&s| s as f32 / 32768.0).collect();
-                        process_audio(&f32_data, channels, sample_rate, target_rate, &buffer, &state);
-                    },
-                    |err| tracing::error!("音频捕获错误: {}", err),
-                    None,
-                )
-            }
-            cpal::SampleFormat::U16 => {
-                device.build_input_stream(
-                    &config,
-                    move |data: &[u16], _: &cpal::InputCallbackInfo| {
-                        let f32_data: Vec<f32> = data.iter().map(|&s| (s as f32 - 32768.0) / 32768.0).collect();
-                        process_audio(&f32_data, channels, sample_rate, target_rate, &buffer, &state);
-                    },
-                    |err| tracing::error!("音频捕获错误: {}", err),
-                    None,
-                )
-            }
-            _ => {
-                return Err(anyhow::anyhow!("不支持的音频格式: {:?}", sample_format));
-            }
-        }
-        .context("构建音频流失败")?;
-
-        stream.play().context("启动音频流失败")?;
-
-        *self.state.lock().unwrap() = super::CaptureState::Running;
-        self._stream = Some(stream);
-        self.start_time = Instant::now();
-
-        tracing::info!("音频捕获已启动");
-        Ok(())
-    }
-
+impl AudioCaptureHandle {
     /// 暂停捕获（静音）
     pub fn mute(&self) {
         *self.state.lock().unwrap() = super::CaptureState::Muted;

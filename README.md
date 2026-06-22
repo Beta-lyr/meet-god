@@ -32,6 +32,8 @@
 - [Node.js](https://nodejs.org/) >= 18
 - [Rust](https://www.rust-lang.org/tools/install) >= 1.77
 - Windows 10 2004+ (Build 19041+)
+- （可选）[LLVM/Clang](https://github.com/llvm/llvm-project/releases) — 启用本地 Whisper 模型
+- （可选）[CMake](https://cmake.org/download/) — whisper-rs 编译依赖
 
 ### 安装依赖
 
@@ -39,10 +41,21 @@
 npm install
 ```
 
-### 开发模式
+### 开发模式（基础，不含本地 Whisper）
 
 ```bash
 npm run tauri dev
+```
+
+### 开发模式（含本地 Whisper）
+
+```bash
+npm run tauri dev -- --features whisper-local
+```
+
+需要先安装 LLVM 和 CMake，并设置环境变量：
+```powershell
+$env:LIBCLANG_PATH = "C:\Program Files\LLVM\bin"
 ```
 
 ### 构建

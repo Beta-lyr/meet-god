@@ -120,6 +120,14 @@ export function usePipeline() {
         }
       });
       unlisteners.push(unlistenHotkey);
+
+      // 初始化时刷新状态（防止页面切换后状态丢失）
+      try {
+        const s = await invoke<PipelineStatus>("get_pipeline_status");
+        setStatus(s);
+      } catch (e) {
+        console.error("初始化状态刷新失败:", e);
+      }
     };
 
     setup();
@@ -127,12 +135,21 @@ export function usePipeline() {
     return () => {
       unlisteners.forEach((fn) => fn());
     };
-  }, [currentQuestion]);
+  }, []);
 
   // 启动管线
   const start = useCallback(async () => {
     try {
       setError(null);
+
+      // 先检查当前状态，避免重复启动
+      const currentStatus = await invoke<PipelineStatus>("get_pipeline_status");
+      if (currentStatus.running) {
+        // 管线已在运行，直接更新 UI 状态
+        setStatus(currentStatus);
+        return;
+      }
+
       await invoke("start_pipeline");
       // 刷新状态
       const s = await invoke<PipelineStatus>("get_pipeline_status");

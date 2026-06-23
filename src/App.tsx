@@ -4,8 +4,9 @@ import Settings from "./components/Settings";
 import Onboarding from "./components/Onboarding";
 import SessionHistory from "./components/SessionHistory";
 import { useConfig } from "./hooks/useConfig";
-import { SettingsIcon, HistoryIcon } from "./components/common/Icons";
+import { SettingsIcon, HistoryIcon, MinimizeIcon, MaximizeIcon, CloseIcon } from "./components/common/Icons";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 type View = "answer" | "settings" | "history";
 
@@ -13,6 +14,7 @@ function App() {
   const [view, setView] = useState<View>("answer");
   const { config, loading, saveConfig } = useConfig();
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const appWindow = getCurrentWindow();
 
   // Check if onboarding is needed (no API key configured)
   useEffect(() => {
@@ -64,44 +66,26 @@ function App() {
   }
 
   return (
-    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+    <div className="floating-window">
       {/* Top Navigation Bar */}
       <nav className="floating-header">
         <div className="floating-header-left">
           <button
-            className="btn btn-ghost"
+            className={`tab-btn ${view === "answer" ? "active" : ""}`}
             onClick={() => setView("answer")}
-            style={{
-              fontSize: "var(--text-sm)",
-              padding: "var(--space-3xs) var(--space-xs)",
-              color: view === "answer" ? "var(--accent-text)" : "var(--text-tertiary)",
-              background: view === "answer" ? "var(--accent-subtle)" : "transparent",
-            }}
           >
             识别
           </button>
           <button
-            className="btn btn-ghost"
+            className={`tab-btn ${view === "settings" ? "active" : ""}`}
             onClick={() => setView("settings")}
-            style={{
-              fontSize: "var(--text-sm)",
-              padding: "var(--space-3xs) var(--space-xs)",
-              color: view === "settings" ? "var(--accent-text)" : "var(--text-tertiary)",
-              background: view === "settings" ? "var(--accent-subtle)" : "transparent",
-            }}
           >
             <SettingsIcon size={12} />
             设置
           </button>
           <button
-            className="btn btn-ghost"
+            className={`tab-btn ${view === "history" ? "active" : ""}`}
             onClick={() => setView("history")}
-            style={{
-              fontSize: "var(--text-sm)",
-              padding: "var(--space-3xs) var(--space-xs)",
-              color: view === "history" ? "var(--accent-text)" : "var(--text-tertiary)",
-              background: view === "history" ? "var(--accent-subtle)" : "transparent",
-            }}
           >
             <HistoryIcon size={12} />
             记录
@@ -111,11 +95,34 @@ function App() {
           <span className="status-badge">
             {config?.stt?.provider === "whisper-local" ? "本地" : "云端"} STT
           </span>
+          <div className="window-controls">
+            <button
+              className="btn-icon window-btn"
+              onClick={() => appWindow.minimize()}
+              title="最小化"
+            >
+              <MinimizeIcon size={12} />
+            </button>
+            <button
+              className="btn-icon window-btn"
+              onClick={() => appWindow.toggleMaximize()}
+              title="最大化"
+            >
+              <MaximizeIcon size={12} />
+            </button>
+            <button
+              className="btn-icon window-btn close-btn"
+              onClick={() => appWindow.hide()}
+              title="隐藏到托盘"
+            >
+              <CloseIcon size={12} />
+            </button>
+          </div>
         </div>
       </nav>
 
       {/* Content Area */}
-      <div style={{ flex: 1, overflow: "hidden" }}>
+      <div className="floating-content-area">
         {view === "answer" && <FloatingAnswer />}
         {view === "settings" && <Settings />}
         {view === "history" && <SessionHistory />}

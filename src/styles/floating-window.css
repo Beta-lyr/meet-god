@@ -209,3 +209,71 @@
   gap: var(--space-2xs);
   animation: card-enter 0.3s ease;
 }
+
+/* ---- Tab Buttons ---- */
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  padding: var(--space-3xs) var(--space-xs);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.tab-btn:hover {
+  color: var(--text-secondary);
+  background: var(--glass-bg-hover);
+}
+
+.tab-btn.active {
+  color: var(--accent-text);
+  background: var(--accent-subtle);
+}
+
+/* ---- Window Controls ---- */
+
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: var(--space-2xs);
+}
+
+.window-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.window-btn:hover {
+  color: var(--text-primary);
+  background: var(--glass-bg-hover);
+}
+
+.window-btn.close-btn:hover {
+  color: #fff;
+  background: var(--color-error);
+}
+
+/* ---- Content Area ---- */
+
+.floating-content-area {
+  flex: 1;
+  overflow: hidden;
+}

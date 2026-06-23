@@ -13,8 +13,12 @@
     "windows": [
       {
         "title": "meet-god",
-        "width": 800,
-        "height": 600
+        "width": 380,
+        "height": 520,
+        "decorations": false,
+        "resizable": true,
+        "minWidth": 280,
+        "minHeight": 360
       }
     ],
     "security": {

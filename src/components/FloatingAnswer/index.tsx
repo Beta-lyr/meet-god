@@ -200,7 +200,7 @@ export default function FloatingAnswer() {
 
             {/* Answer cards */}
             {answers.map((item) => (
-              <div key={item.id} className="card-answer">
+              <div key={item.id} className={`card-answer ${item.isStreaming ? "streaming" : ""}`}>
                 {/* Question label */}
                 <div className="card-header">
                   <span className="card-label">
@@ -222,8 +222,11 @@ export default function FloatingAnswer() {
                   <span className="card-label">参考</span>
                 </div>
 
-                {/* Answer text */}
-                <div className="text-answer">{item.answer}</div>
+                {/* Answer text with streaming cursor */}
+                <div className="text-answer">
+                  {item.answer}
+                  {item.isStreaming && <span className="streaming-cursor" />}
+                </div>
 
                 {/* Actions */}
                 <div className="card-actions">

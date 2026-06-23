@@ -180,6 +180,98 @@ impl AudioCaptureHandle {
     }
 }
 
+/// 启动麦克风捕获（录制用户自己的声音）
+pub fn start_microphone_capture(
+    target_sample_rate: u32,
+    buffer: Arc<Mutex<Vec<f32>>>,
+    state: Arc<Mutex<super::CaptureState>>,
+) -> Result<AudioCaptureHandle> {
+    let host = cpal::default_host();
+
+    let device = host
+        .default_input_device()
+        .context("未找到默认音频输入设备（麦克风）")?;
+
+    tracing::info!("麦克风设备: {}", device.name().unwrap_or_default());
+
+    let supported_config = device
+        .default_input_config()
+        .context("无法获取麦克风配置")?;
+
+    let mic_sample_rate = supported_config.sample_rate().0;
+    let channels = supported_config.channels() as usize;
+    let sample_format = supported_config.sample_format();
+
+    tracing::info!(
+        "麦克风: {}Hz, {} 壁道, {:?}",
+        mic_sample_rate,
+        channels,
+        sample_format
+    );
+
+    let config: cpal::StreamConfig = supported_config.into();
+    let buf_clone = buffer.clone();
+    let state_clone = state.clone();
+
+    let stream = match sample_format {
+        cpal::SampleFormat::F32 => {
+            device.build_input_stream(
+                &config,
+                move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                    process_audio(data, channels, mic_sample_rate, target_sample_rate, &buf_clone, &state_clone);
+                },
+                |err| tracing::error!("麦克风捕获错误: {}", err),
+                None,
+            )
+        }
+        cpal::SampleFormat::I16 => {
+            device.build_input_stream(
+                &config,
+                move |data: &[i16], _: &cpal::InputCallbackInfo| {
+                    let f32_data: Vec<f32> = data.iter().map(|&s| s as f32 / 32768.0).collect();
+                    process_audio(&f32_data, channels, mic_sample_rate, target_sample_rate, &buf_clone, &state_clone);
+                },
+                |err| tracing::error!("麦克风捕获错误: {}", err),
+                None,
+            )
+        }
+        cpal::SampleFormat::U16 => {
+            device.build_input_stream(
+                &config,
+                move |data: &[u16], _: &cpal::InputCallbackInfo| {
+                    let f32_data: Vec<f32> = data.iter().map(|&s| (s as f32 - 32768.0) / 32768.0).collect();
+                    process_audio(&f32_data, channels, mic_sample_rate, target_sample_rate, &buf_clone, &state_clone);
+                },
+                |err| tracing::error!("麦克风捕获错误: {}", err),
+                None,
+            )
+        }
+        _ => {
+            return Err(anyhow::anyhow!("不支持的音频格式: {:?}", sample_format));
+        }
+    }
+    .context("构建麦克风音频流失败")?;
+
+    stream.play().context("启动麦克风音频流失败")?;
+
+    let wrapper = StreamWrapper(stream);
+    std::thread::spawn(move || {
+        let _w = wrapper;
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(3600));
+        }
+    });
+
+    *state.lock().unwrap() = super::CaptureState::Running;
+    tracing::info!("麦克风捕获已启动");
+
+    Ok(AudioCaptureHandle {
+        buffer,
+        state,
+        start_time: Instant::now(),
+    })
+}
+
 /// 处理音频回调：多声道转单声道 + 重采样
 fn process_audio(
     data: &[f32],

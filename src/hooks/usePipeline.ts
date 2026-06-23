@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -25,6 +25,7 @@ export function usePipeline() {
   });
   const [answers, setAnswers] = useState<AnswerEntry[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState<string>("");
+  const currentQuestionRef = useRef<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,21 +42,49 @@ export function usePipeline() {
           case "Transcription":
             if (data.text) {
               setCurrentQuestion(data.text);
+              currentQuestionRef.current = data.text;
               setIsGenerating(true);
             }
             break;
 
           case "AnswerChunk":
-            if (data.content) {
-              const newAnswer: AnswerEntry = {
-                id: Date.now().toString(),
-                question: currentQuestion || "(未知问题)",
-                answer: data.content,
-                timestamp: Date.now(),
-                latency_ms: data.latency_ms || 0,
-              };
-              setAnswers((prev) => [newAnswer, ...prev]);
+            if (data.done) {
+              // 最后一个 chunk — 完成流式输出
+              setAnswers((prev) => {
+                const updated = [...prev];
+                if (updated[0] && updated[0].isStreaming) {
+                  updated[0] = {
+                    ...updated[0],
+                    answer: updated[0].answer + (data.content || ""),
+                    isStreaming: false,
+                  };
+                }
+                return updated;
+              });
               setIsGenerating(false);
+            } else if (data.content) {
+              // 中间 chunk — 追加到当前流式答案
+              setAnswers((prev) => {
+                const updated = [...prev];
+                if (updated[0] && updated[0].isStreaming) {
+                  updated[0] = {
+                    ...updated[0],
+                    answer: updated[0].answer + data.content,
+                  };
+                } else {
+                  // 开始新的流式答案
+                  const newAnswer: AnswerEntry = {
+                    id: Date.now().toString(),
+                    question: currentQuestionRef.current || "(未知问题)",
+                    answer: data.content,
+                    timestamp: Date.now(),
+                    latency_ms: 0,
+                    isStreaming: true,
+                  };
+                  updated.unshift(newAnswer);
+                }
+                return updated;
+              });
             }
             break;
 

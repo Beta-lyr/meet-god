@@ -507,3 +507,187 @@
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
+
+/* ========== Session History ========== */
+
+.session-list-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-xs);
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.session-card {
+  cursor: pointer;
+  padding: var(--space-xs) var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+}
+.session-card:hover {
+  border-color: var(--glass-border-hover);
+}
+
+.session-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.session-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4xs);
+}
+
+.session-card-title {
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-card-meta {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.session-card-duration {
+  font-size: var(--text-xs);
+  color: var(--text-disabled);
+}
+
+.session-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  flex-shrink: 0;
+}
+
+/* ---- Session Dropdown ---- */
+
+.session-dropdown-wrapper {
+  position: relative;
+}
+
+.session-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: var(--space-4xs);
+  background: var(--bg-elevated);
+  border: var(--border-default);
+  border-radius: var(--radius-sm);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-overlay);
+  min-width: 140px;
+  overflow: hidden;
+  animation: fade-in 0.15s ease;
+}
+
+.session-dropdown-right {
+  right: auto;
+  left: 0;
+}
+
+.session-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: var(--space-2xs) var(--space-xs);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-fast);
+}
+.session-dropdown-item:hover {
+  background: var(--glass-bg-hover);
+  color: var(--text-primary);
+}
+
+/* ---- Session Detail ---- */
+
+.session-detail-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-xs);
+}
+
+.session-messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.session-message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+}
+
+.session-msg-time {
+  font-size: var(--text-xs);
+  color: var(--text-disabled);
+  margin-left: var(--space-3xs);
+}
+
+/* ---- Bookmark Bar ---- */
+
+.session-bookmark-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2xs);
+  margin-top: var(--space-3xs);
+  padding-top: var(--space-3xs);
+  border-top: var(--border-subtle);
+}
+
+.session-bookmark-buttons {
+  display: flex;
+  gap: var(--space-4xs);
+  flex-wrap: wrap;
+}
+
+.session-bookmark-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-4xs) var(--space-2xs);
+  font-size: var(--text-xs);
+  border-radius: var(--radius-full);
+  font-weight: 500;
+}
+
+.session-bookmark-important {
+  background: var(--warning-subtle);
+  color: var(--warning);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.session-bookmark-mastered {
+  background: var(--success-subtle);
+  color: var(--success);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.session-bookmark-review {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+}

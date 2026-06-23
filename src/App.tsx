@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import FloatingAnswer from "./components/FloatingAnswer";
 import Settings from "./components/Settings";
 import Onboarding from "./components/Onboarding";
+import SessionHistory from "./components/SessionHistory";
 import { useConfig } from "./hooks/useConfig";
-import { SettingsIcon } from "./components/common/Icons";
+import { SettingsIcon, HistoryIcon } from "./components/common/Icons";
 import { listen } from "@tauri-apps/api/event";
 
-type View = "answer" | "settings";
+type View = "answer" | "settings" | "history";
 
 function App() {
   const [view, setView] = useState<View>("answer");
@@ -92,6 +93,19 @@ function App() {
             <SettingsIcon size={12} />
             设置
           </button>
+          <button
+            className="btn btn-ghost"
+            onClick={() => setView("history")}
+            style={{
+              fontSize: "var(--text-sm)",
+              padding: "var(--space-3xs) var(--space-xs)",
+              color: view === "history" ? "var(--accent-text)" : "var(--text-tertiary)",
+              background: view === "history" ? "var(--accent-subtle)" : "transparent",
+            }}
+          >
+            <HistoryIcon size={12} />
+            记录
+          </button>
         </div>
         <div className="floating-header-right">
           <span className="status-badge">
@@ -104,6 +118,7 @@ function App() {
       <div style={{ flex: 1, overflow: "hidden" }}>
         {view === "answer" && <FloatingAnswer />}
         {view === "settings" && <Settings />}
+        {view === "history" && <SessionHistory />}
       </div>
     </div>
   );

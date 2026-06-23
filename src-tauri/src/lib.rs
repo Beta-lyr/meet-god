@@ -2,6 +2,7 @@ mod audio;
 mod config;
 mod llm;
 mod pipeline;
+mod recorder;
 mod stealth;
 mod stt;
 
@@ -18,8 +19,10 @@ use tokio::sync::Mutex;
 pub struct AppState {
     pub config: Mutex<AppConfig>,
     pub audio_handle: Mutex<Option<AudioCaptureHandle>>,
+    pub mic_handle: Mutex<Option<AudioCaptureHandle>>,
     pub pipeline: Mutex<Option<Arc<PipelineEngine>>>,
     pub running: Arc<Mutex<bool>>,
+    pub current_session: Mutex<Option<String>>,
 }
 
 /// 音频设备信息
@@ -180,7 +183,27 @@ async fn start_pipeline(
         model: config.llm.primary.model.clone(),
         temperature: config.llm.primary.temperature,
         max_tokens: config.llm.primary.max_tokens,
-        system_prompt,
+        system_prompt: system_prompt.clone(),
+    };
+
+    // 创建备选引擎（如果配置了 fallback）
+    let fallback_engine = if !config.llm.fallback.api_key.is_empty() {
+        let fallback_llm: Arc<dyn llm::provider::LlmProvider> =
+            Arc::from(llm::provider::create_provider(&config.llm.fallback));
+        let fallback_config = llm::ChatConfig {
+            model: config.llm.fallback.model.clone(),
+            temperature: config.llm.fallback.temperature,
+            max_tokens: config.llm.fallback.max_tokens,
+            system_prompt,
+        };
+        Some(Arc::new(PipelineEngine::new(
+            stt_provider.clone(),
+            fallback_llm,
+            fallback_config,
+            config.audio.vad_threshold,
+        )))
+    } else {
+        None
     };
 
     let vad_threshold = config.audio.vad_threshold;
@@ -207,10 +230,23 @@ async fn start_pipeline(
     *state.pipeline.lock().await = Some(engine.clone());
     *state.running.lock().await = true;
 
+    // 自动创建会话
+    let session_id = format!("s-{}", std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis());
+    if let Err(e) = recorder::db::create_session(&session_id, "") {
+        tracing::warn!("自动创建会话失败: {}", e);
+    }
+    *state.current_session.lock().await = Some(session_id.clone());
+    tracing::info!("自动创建会话: {}", session_id);
+
     // 启动事件推送循环（后台任务）
     let engine_clone = engine.clone();
+    let fallback_engine_clone = fallback_engine;
     let app_handle_clone = app_handle.clone();
     let running_flag = state.running.clone(); // Arc<Mutex<bool>> - Arc is Clone
+    let session_id_clone = session_id.clone();
 
     tokio::spawn(async move {
         tracing::info!("事件推送循环已启动");
@@ -246,24 +282,69 @@ async fn start_pipeline(
 
             // 处理音频
             if let Some(event) = engine_clone.process_audio(&audio_data).await {
+                // 保存识别结果到数据库
+                if let PipelineEvent::Transcription { ref text, latency_ms, .. } = event {
+                    if let Err(e) = recorder::db::add_message(&session_id_clone, "question", text, latency_ms) {
+                        tracing::warn!("保存问题消息失败: {}", e);
+                    }
+                }
+
                 // 推送 STT 事件到前端
                 let _ = app_handle_clone.emit("pipeline-event", &event);
 
-                // 如果是识别结果，调用 LLM 生成答案
+                // 如果是识别结果，调用 LLM 生成答案（流式推送）
                 if let PipelineEvent::Transcription { ref text, .. } = event {
-                    let answer_event = engine_clone.generate_answer(text).await;
-                    let _ = app_handle_clone.emit("pipeline-event", &answer_event);
+                    let answer_events = engine_clone.generate_answer(text).await;
+
+                    // 检查是否需要使用备选模型
+                    let answer_events = if answer_events.iter().any(|e| matches!(e, PipelineEvent::Error { .. })) {
+                        if let Some(ref fallback) = fallback_engine_clone {
+                            tracing::warn!("主模型失败，使用备选模型");
+                            let _ = app_handle_clone.emit("pipeline-event", PipelineEvent::StateChange {
+                                state: "fallback".to_string(),
+                            });
+                            fallback.generate_answer(text).await
+                        } else {
+                            answer_events
+                        }
+                    } else {
+                        answer_events
+                    };
+
+                    let mut full_answer = String::new();
+
+                    for answer_event in answer_events {
+                        // 收集完整答案用于数据库保存
+                        if let PipelineEvent::AnswerChunk { ref content, done, .. } = answer_event {
+                            full_answer.push_str(content);
+
+                            // 最后一个 chunk 完成时保存到数据库
+                            if done && !full_answer.is_empty() {
+                                if let Err(e) = recorder::db::add_message(&session_id_clone, "answer", &full_answer, 0) {
+                                    tracing::warn!("保存答案消息失败: {}", e);
+                                }
+                            }
+                        }
+
+                        // 逐 chunk 推送到前端（打字机效果）
+                        let _ = app_handle_clone.emit("pipeline-event", &answer_event);
+                    }
                 }
             }
         }
 
-        tracing::info!("事件推送循环已停止");
+        // 管线停止时自动结束会话
+        if let Err(e) = recorder::db::end_session(&session_id_clone) {
+            tracing::warn!("自动结束会话失败: {}", e);
+        }
+        tracing::info!("事件推送循环已停止，会话已结束: {}", session_id_clone);
     });
 
-    // 推送状态变化事件
+    // 推送状态变化事件（包含会话 ID）
     let _ = app_handle.emit("pipeline-event", PipelineEvent::StateChange {
         state: "running".to_string(),
     });
+    let _ = app_handle.emit("session-started", serde_json::json!({ "session_id": session_id }));
 
     tracing::info!("管线已启动");
     Ok(())
@@ -277,7 +358,19 @@ async fn stop_pipeline(
 ) -> Result<(), String> {
     *state.running.lock().await = false;
     *state.audio_handle.lock().await = None;
+    *state.mic_handle.lock().await = None;
     *state.pipeline.lock().await = None;
+
+    // 结束当前会话
+    {
+        let current = state.current_session.lock().await;
+        if let Some(ref session_id) = *current {
+            if let Err(e) = recorder::db::end_session(session_id) {
+                tracing::warn!("结束会话失败: {}", e);
+            }
+        }
+    }
+    *state.current_session.lock().await = None;
 
     let _ = app_handle.emit("pipeline-event", PipelineEvent::StateChange {
         state: "stopped".to_string(),
@@ -296,6 +389,39 @@ async fn toggle_mute(state: tauri::State<'_, AppState>) -> Result<String, String
         Ok(format!("{:?}", new_state))
     } else {
         Err("音频捕获未启动".to_string())
+    }
+}
+
+/// 切换麦克风录制（录制用户自己的声音）
+#[tauri::command]
+async fn toggle_microphone(
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    let mut mic = state.mic_handle.lock().await;
+
+    if mic.is_some() {
+        // 停止麦克风
+        *mic = None;
+        Ok("stopped".to_string())
+    } else {
+        // 启动麦克风
+        let config = state.config.lock().await;
+        let sample_rate = config.audio.sample_rate;
+        drop(config);
+
+        let buffer = Arc::new(StdMutex::new(Vec::<f32>::new()));
+        let capture_state = Arc::new(StdMutex::new(audio::CaptureState::Running));
+
+        let handle = audio::capture::start_microphone_capture(
+            sample_rate,
+            buffer,
+            capture_state,
+        )
+        .map_err(|e| format!("麦克风启动失败: {}", e))?;
+
+        let result = "running".to_string();
+        *mic = Some(handle);
+        Ok(result)
     }
 }
 
@@ -330,11 +456,22 @@ async fn process_audio_text(
     let config = state.config.lock().await;
 
     if let Some(ref engine) = *pipeline {
-        let event = engine.generate_answer(&text).await;
-        match event {
-            PipelineEvent::AnswerChunk { content, .. } => Ok(content),
-            PipelineEvent::Error { message } => Err(message),
-            _ => Ok(String::new()),
+        let events = engine.generate_answer(&text).await;
+        // 合并所有 chunk 为完整答案
+        let full_text: String = events
+            .iter()
+            .filter_map(|e| match e {
+                PipelineEvent::AnswerChunk { content, .. } => Some(content.as_str()),
+                _ => None,
+            })
+            .collect();
+        if full_text.is_empty() {
+            match events.into_iter().next() {
+                Some(PipelineEvent::Error { message }) => Err(message),
+                _ => Ok("(无响应)".to_string()),
+            }
+        } else {
+            Ok(full_text)
         }
     } else {
         // 管线未启动时，直接调用 LLM
@@ -463,6 +600,95 @@ async fn register_hotkeys(app_handle: tauri::AppHandle) -> Result<(), String> {
 
     tracing::info!("全局快捷键已注册");
     Ok(())
+}
+
+// ========== 会话记录 Commands ==========
+
+/// 创建新会话
+#[tauri::command]
+async fn create_session(
+    state: tauri::State<'_, AppState>,
+    title: String,
+) -> Result<recorder::db::Session, String> {
+    let id = format!("s-{}", std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis());
+    let session = recorder::db::create_session(&id, &title)?;
+    let mut current = state.current_session.lock().await;
+    *current = Some(id);
+    Ok(session)
+}
+
+/// 结束会话
+#[tauri::command]
+async fn end_session(
+    state: tauri::State<'_, AppState>,
+    session_id: String,
+) -> Result<(), String> {
+    recorder::db::end_session(&session_id)?;
+    let mut current = state.current_session.lock().await;
+    if current.as_deref() == Some(&session_id) {
+        *current = None;
+    }
+    Ok(())
+}
+
+/// 添加消息
+#[tauri::command]
+async fn add_message(
+    session_id: String,
+    role: String,
+    content: String,
+    latency_ms: u64,
+) -> Result<recorder::db::Message, String> {
+    recorder::db::add_message(&session_id, &role, &content, latency_ms)
+}
+
+/// 更新书签
+#[tauri::command]
+async fn update_bookmark(
+    message_id: String,
+    bookmark: Option<String>,
+) -> Result<(), String> {
+    recorder::db::update_bookmark(&message_id, bookmark.as_deref())
+}
+
+/// 列出会话
+#[tauri::command]
+async fn list_sessions(
+    limit: Option<i64>,
+) -> Result<Vec<recorder::db::Session>, String> {
+    recorder::db::list_sessions(limit.unwrap_or(50))
+}
+
+/// 获取会话消息
+#[tauri::command]
+async fn get_session_messages(
+    session_id: String,
+) -> Result<Vec<recorder::db::Message>, String> {
+    recorder::db::get_session_messages(&session_id)
+}
+
+/// 删除会话
+#[tauri::command]
+async fn delete_session(
+    session_id: String,
+) -> Result<(), String> {
+    recorder::db::delete_session(&session_id)
+}
+
+/// 导出会话（markdown 或 json）
+#[tauri::command]
+async fn export_session(
+    session_id: String,
+    format: String,
+) -> Result<String, String> {
+    match format.as_str() {
+        "markdown" | "md" => recorder::db::export_session_markdown(&session_id),
+        "json" => recorder::db::export_session_json(&session_id),
+        _ => Err(format!("不支持的导出格式: {}", format)),
+    }
 }
 
 /// 构建 System Prompt
@@ -653,8 +879,10 @@ pub fn run() {
         .manage(AppState {
             config: Mutex::new(app_config),
             audio_handle: Mutex::new(None),
+            mic_handle: Mutex::new(None),
             pipeline: Mutex::new(None),
             running: Arc::new(Mutex::new(false)),
+            current_session: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             get_config,
@@ -669,6 +897,7 @@ pub fn run() {
             start_pipeline,
             stop_pipeline,
             toggle_mute,
+            toggle_microphone,
             get_pipeline_status,
             process_audio_text,
             toggle_window_visibility,
@@ -676,8 +905,21 @@ pub fn run() {
             set_no_activate,
             set_click_through,
             register_hotkeys,
+            create_session,
+            end_session,
+            add_message,
+            update_bookmark,
+            list_sessions,
+            get_session_messages,
+            delete_session,
+            export_session,
         ])
         .setup(|app| {
+            // ========== 初始化数据库 ==========
+            if let Err(e) = recorder::db::init_database() {
+                tracing::error!("数据库初始化失败: {}", e);
+            }
+
             // ========== 窗口隐蔽样式 ==========
             if let Some(window) = app.get_webview_window("main") {
                 #[cfg(target_os = "windows")]

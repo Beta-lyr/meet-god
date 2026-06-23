@@ -111,6 +111,8 @@ export interface AnswerEntry {
   answer: string;
   timestamp: number;
   latency_ms: number;
+  /** 是否正在流式输出中 */
+  isStreaming?: boolean;
 }
 
 /// 管线状态
@@ -119,4 +121,24 @@ export interface PipelineStatus {
   audio_state: string;
   stt_provider: string;
   llm_provider: string;
+}
+
+/// 会话记录
+export interface Session {
+  id: string;
+  title: string;
+  started_at: string;
+  ended_at: string | null;
+  message_count: number;
+}
+
+/// 会话消息
+export interface SessionMessage {
+  id: string;
+  session_id: string;
+  role: "question" | "answer";
+  content: string;
+  latency_ms: number;
+  created_at: string;
+  bookmark: string | null;
 }

@@ -136,8 +136,8 @@ impl PipelineEngine {
         None
     }
 
-    /// 使用 LLM 生成答案
-    pub async fn generate_answer(&self, question: &str) -> PipelineEvent {
+    /// 使用 LLM 生成答案，返回多个事件（逐 chunk 流式推送）
+    pub async fn generate_answer(&self, question: &str) -> Vec<PipelineEvent> {
         let messages = vec![
             Message {
                 role: Role::System,
@@ -151,25 +151,57 @@ impl PipelineEngine {
 
         match self.llm.chat_stream(&messages, &self.chat_config) {
             Ok(chunks) => {
-                let full_text: String = chunks.iter().map(|c| c.content.as_str()).collect();
-                if full_text.is_empty() {
-                    PipelineEvent::AnswerChunk {
+                if chunks.is_empty() {
+                    return vec![PipelineEvent::AnswerChunk {
                         content: "(无响应)".to_string(),
                         done: true,
-                    }
-                } else {
-                    // 返回合并的答案（完整实现应逐 chunk 推送）
-                    PipelineEvent::AnswerChunk {
-                        content: full_text,
-                        done: true,
-                    }
+                    }];
                 }
+
+                let mut events = Vec::new();
+                let total = chunks.len();
+
+                for (i, chunk) in chunks.iter().enumerate() {
+                    if chunk.content.is_empty() && i < total - 1 {
+                        continue;
+                    }
+                    events.push(PipelineEvent::AnswerChunk {
+                        content: chunk.content.clone(),
+                        done: i == total - 1,
+                    });
+                }
+
+                events
             }
             Err(e) => {
                 tracing::error!("LLM 调用失败: {}", e);
-                PipelineEvent::Error {
+                vec![PipelineEvent::Error {
                     message: format!("LLM 错误: {}", e),
-                }
+                }]
+            }
+        }
+    }
+
+    /// 使用 LLM 生成答案（同步，返回单个事件，用于兼容）
+    pub async fn generate_answer_single(&self, question: &str) -> PipelineEvent {
+        let events = self.generate_answer(question).await;
+        // 合并所有 chunk 为单个事件
+        let full_text: String = events
+            .iter()
+            .filter_map(|e| match e {
+                PipelineEvent::AnswerChunk { content, .. } => Some(content.as_str()),
+                _ => None,
+            })
+            .collect();
+
+        if full_text.is_empty() {
+            events.into_iter().next().unwrap_or(PipelineEvent::Error {
+                message: "未知错误".to_string(),
+            })
+        } else {
+            PipelineEvent::AnswerChunk {
+                content: full_text,
+                done: true,
             }
         }
     }

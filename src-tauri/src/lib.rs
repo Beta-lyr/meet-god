@@ -448,11 +448,11 @@ async fn register_hotkeys(app_handle: tauri::AppHandle) -> Result<(), String> {
         )
         .map_err(|e| e.to_string())?;
 
-    // Ctrl+Shift+Escape -> 紧急退出
+    // Ctrl+Shift+Q -> 紧急退出
     app_handle
         .global_shortcut()
         .on_shortcut(
-            Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Escape),
+            Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyQ),
             move |app, _shortcut, event| {
                 if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                     app.exit(0);
@@ -722,9 +722,9 @@ pub fn run() {
                     },
                 )?;
 
-                // Ctrl+Shift+Escape -> 紧急退出
+                // Ctrl+Shift+Q -> 紧急退出
                 app.global_shortcut().on_shortcut(
-                    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Escape),
+                    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyQ),
                     move |app, _shortcut, event| {
                         if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                             app.exit(0);

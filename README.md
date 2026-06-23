@@ -99,7 +99,7 @@ npm run tauri build
 |--------|------|
 | `Ctrl+Shift+H` | 显示/隐藏答案窗 |
 | `Ctrl+Shift+M` | 静音/取消静音 |
-| `Ctrl+Shift+Esc` | 紧急退出 |
+| `Ctrl+Shift+Q` | 紧急退出 |
 
 ## 📁 项目结构
 

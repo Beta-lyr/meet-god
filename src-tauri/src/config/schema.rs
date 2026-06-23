@@ -221,7 +221,7 @@ impl Default for HotkeyConfig {
         Self {
             toggle_visibility: "Ctrl+Shift+H".to_string(),
             toggle_mute: "Ctrl+Shift+M".to_string(),
-            emergency_exit: "Ctrl+Shift+Escape".to_string(),
+            emergency_exit: "Ctrl+Shift+Q".to_string(),
         }
     }
 }

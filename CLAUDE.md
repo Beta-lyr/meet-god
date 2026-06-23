@@ -12,11 +12,14 @@ Meet-God is an AI interview copilot desktop application built with Tauri 2. It c
 # Frontend only (Vite dev server)
 npm run dev
 
-# Full Tauri dev (frontend + Rust backend)
+# Full Tauri dev (frontend + Rust backend, no local Whisper)
 npm run tauri dev
 
-# With local Whisper STT (requires LLVM + CMake installed)
-npm run tauri dev -- --features whisper-local
+# Full Tauri dev with local Whisper STT (recommended, requires LLVM + CMake)
+npm run tauri:dev
+
+# Build release with local Whisper
+npm run tauri:build
 
 # TypeScript check
 npx tsc --noEmit

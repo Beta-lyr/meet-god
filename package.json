@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev -- --features whisper-local",
+    "tauri:build": "tauri build -- --features whisper-local"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

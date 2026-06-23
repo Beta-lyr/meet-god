@@ -46,11 +46,13 @@ pub struct PipelineEngine {
     chat_config: ChatConfig,
     /// 音频累积缓冲区（用于语音片段拼接）
     audio_buffer: Arc<Mutex<Vec<f32>>>,
-    /// 上次识别的时间戳
+    /// 上次识别的时间戳（预留，用于去重）
+    #[allow(dead_code)]
     last_recognize_time: Arc<Mutex<Instant>>,
     /// 语音片段最小长度 (采样数, 16kHz 下 1s = 16000)
     min_speech_samples: usize,
-    /// 语音片段最大长度 (采样数, 16kHz 下 10s = 160000)
+    /// 语音片段最大长度 (采样数, 16kHz 下 10s = 160000)（预留）
+    #[allow(dead_code)]
     max_speech_samples: usize,
 }
 

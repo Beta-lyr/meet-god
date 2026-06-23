@@ -27,6 +27,7 @@ pub fn get_default_output_sample_rate() -> Result<u32> {
 /// 包装 cpal::Stream 使其可以跨线程传递
 /// cpal::Stream 包含 *mut () 指针，标记为 !Send
 /// 但 cpal 的流实际上是线程安全的（回调在 cpal 内部线程执行）
+#[allow(dead_code)]
 struct StreamWrapper(cpal::Stream);
 unsafe impl Send for StreamWrapper {}
 
@@ -72,6 +73,8 @@ pub fn start_capture(
     let config: cpal::StreamConfig = supported_config.into();
     let buf_clone = buffer.clone();
     let state_clone = state.clone();
+    let callback_count = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let callback_count_clone = callback_count.clone();
 
     // 根据采样格式构建对应的输入流
     let stream = match sample_format {
@@ -79,6 +82,11 @@ pub fn start_capture(
             device.build_input_stream(
                 &config,
                 move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                    let count = callback_count_clone.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    if count < 5 || count % 100 == 0 {
+                        let max_val = data.iter().map(|v| v.abs()).fold(0.0f32, f32::max);
+                        tracing::info!("音频回调 #{}: {} 采样, 最大振幅: {:.6}", count, data.len(), max_val);
+                    }
                     process_audio(data, channels, system_sample_rate, target_sample_rate, &buf_clone, &state_clone);
                 },
                 |err| tracing::error!("音频捕获错误: {}", err),

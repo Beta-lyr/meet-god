@@ -19,7 +19,8 @@ pub fn set_invisible_to_capture(hwnd: isize) -> Result<(), String> {
     Ok(())
 }
 
-/// 设置窗口置顶
+/// 设置窗口置顶（预留，前端可通过命令调用）
+#[allow(dead_code)]
 #[cfg(target_os = "windows")]
 pub fn set_always_on_top(hwnd: isize, on_top: bool) -> Result<(), String> {
     use windows::Win32::Foundation::HWND;
@@ -140,6 +141,7 @@ pub fn set_invisible_to_capture(_hwnd: isize) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(dead_code)]
 #[cfg(not(target_os = "windows"))]
 pub fn set_always_on_top(_hwnd: isize, _on_top: bool) -> Result<(), String> {
     tracing::warn!("当前平台不支持窗口置顶");

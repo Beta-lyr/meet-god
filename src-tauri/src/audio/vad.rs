@@ -5,7 +5,8 @@
 pub struct VadDetector {
     /// 能量阈值
     threshold: f32,
-    /// 采样率
+    /// 采样率（预留）
+    #[allow(dead_code)]
     sample_rate: u32,
     /// 每帧大小 (samples)
     frame_size: usize,
@@ -69,6 +70,7 @@ impl VadDetector {
         (speech_count as f32 / frames.len() as f32) > speech_ratio_threshold
     }
 
+    #[allow(dead_code)]
     pub fn frame_size(&self) -> usize {
         self.frame_size
     }

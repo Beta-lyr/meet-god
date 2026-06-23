@@ -1,5 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { usePipeline } from "../../hooks/usePipeline";
+import {
+  PlayIcon,
+  PauseIcon,
+  MicIcon,
+  MicOffIcon,
+  CopyIcon,
+  CheckIcon,
+  TrashIcon,
+  SendIcon,
+  DownloadIcon,
+} from "../common/Icons";
 
 export default function FloatingAnswer() {
   const {
@@ -23,7 +34,7 @@ export default function FloatingAnswer() {
   const [modelReady, setModelReady] = useState<boolean | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // 检查模型状态
+  // Check model status on mount
   useEffect(() => {
     getModelStatus("base")
       .then((s) => setModelReady(s.exists))
@@ -51,10 +62,7 @@ export default function FloatingAnswer() {
   };
 
   const handleStart = async () => {
-    if (modelReady === false) {
-      // 模型不存在，提示下载
-      return;
-    }
+    if (modelReady === false) return;
     await start();
   };
 
@@ -73,128 +81,88 @@ export default function FloatingAnswer() {
   };
 
   const isRunning = status.running;
+  const isMuted = status.audio_state === "muted";
+
+  // Status dot class
+  const statusDotClass = isRunning
+    ? isMuted
+      ? "status-dot processing"
+      : "status-dot recording"
+    : "status-dot idle";
 
   return (
-    <div style={{
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-    }}>
-      {/* 控制栏 */}
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        padding: "8px 12px",
-        borderBottom: "1px solid var(--border)",
-        background: "var(--bg-secondary)",
-      }}>
-        {/* 状态指示器 */}
-        <div style={{
-          width: "8px",
-          height: "8px",
-          borderRadius: "50%",
-          background: isRunning
-            ? (status.audio_state === "muted" ? "var(--warning)" : "var(--success)")
-            : "var(--text-muted)",
-        }} />
+    <div className="floating-window" style={{ width: "100%", height: "100%", resize: "none", borderRadius: 0 }}>
+      {/* Header: control bar */}
+      <div className="floating-header">
+        <div className="floating-header-left">
+          <div className={statusDotClass} />
 
-        {/* 启动/停止按钮 */}
-        <button
-          onClick={isRunning ? stop : handleStart}
-          disabled={modelReady === false && !isRunning}
-          style={{
-            padding: "4px 12px",
-            fontSize: "12px",
-            background: isRunning
-              ? "var(--error)"
-              : modelReady === false
-                ? "var(--bg-card)"
-                : "var(--success)",
-            color: modelReady === false && !isRunning ? "var(--text-muted)" : "#fff",
-          }}
-        >
-          {isRunning ? "停止" : "启动"}
-        </button>
-
-        {/* 静音按钮 */}
-        {isRunning && (
+          {/* Start / Stop */}
           <button
-            onClick={toggleMute}
-            style={{
-              padding: "4px 12px",
-              fontSize: "12px",
-              background: status.audio_state === "muted" ? "var(--warning)" : "var(--bg-card)",
-              color: status.audio_state === "muted" ? "#000" : "var(--text-secondary)",
-              border: "1px solid var(--border)",
-            }}
+            className={`btn ${isRunning ? "btn-danger" : "btn-primary"}`}
+            onClick={isRunning ? stop : handleStart}
+            disabled={modelReady === false && !isRunning}
+            style={{ fontSize: "var(--text-xs)", padding: "var(--space-3xs) var(--space-xs)" }}
           >
-            {status.audio_state === "muted" ? "已静音" : "静音"}
+            {isRunning ? <PauseIcon size={10} /> : <PlayIcon size={10} />}
+            {isRunning ? "停止" : "启动"}
           </button>
-        )}
 
-        {/* 清空按钮 */}
-        {answers.length > 0 && (
-          <button
-            onClick={clearAnswers}
-            style={{
-              padding: "4px 12px",
-              fontSize: "12px",
-              background: "transparent",
-              color: "var(--text-muted)",
-              border: "1px solid var(--border)",
-              marginLeft: "auto",
-            }}
-          >
-            清空
-          </button>
-        )}
+          {/* Mute toggle */}
+          {isRunning && (
+            <button
+              className="btn btn-secondary"
+              onClick={toggleMute}
+              style={{ fontSize: "var(--text-xs)", padding: "var(--space-3xs) var(--space-xs)" }}
+            >
+              {isMuted ? <MicOffIcon size={11} /> : <MicIcon size={11} />}
+              {isMuted ? "已静音" : "静音"}
+            </button>
+          )}
+        </div>
+
+        <div className="floating-header-right">
+          {/* Clear */}
+          {answers.length > 0 && (
+            <button
+              className="btn-icon"
+              onClick={clearAnswers}
+              title="清空会话记录"
+            >
+              <TrashIcon size={12} />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* 错误提示 */}
+      {/* Error Banner */}
       {error && (
-        <div style={{
-          padding: "8px 12px",
-          background: "rgba(239, 68, 68, 0.15)",
-          color: "var(--error)",
-          fontSize: "12px",
-          borderBottom: "1px solid var(--border)",
-        }}>
-          ⚠️ {error}
+        <div className="error-banner">
+          {error}
         </div>
       )}
 
-      {/* 模型未就绪提示 */}
+      {/* Model not ready prompt */}
       {modelReady === false && !isRunning && (
-        <div style={{
-          padding: "16px",
-          margin: "12px",
-          background: "var(--bg-card)",
-          borderRadius: "var(--radius)",
-          border: "1px solid var(--warning)",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "12px",
-        }}>
-          <div style={{ fontSize: "13px", color: "var(--text-secondary)", textAlign: "center" }}>
+        <div className="download-prompt">
+          <div className="download-prompt-icon">
+            <DownloadIcon size={32} />
+          </div>
+          <div className="download-prompt-text">
             Whisper 语音识别模型尚未下载
           </div>
           <button
+            className="btn btn-primary"
             onClick={handleDownload}
             disabled={isDownloading}
-            style={{
-              padding: "8px 24px",
-              fontSize: "13px",
-              background: isDownloading ? "var(--bg-card)" : "var(--accent)",
-              color: isDownloading ? "var(--text-muted)" : "#fff",
-            }}
+            style={{ padding: "var(--space-2xs) var(--space-lg)" }}
           >
+            {isDownloading && <span className="loading-spinner" />}
             {isDownloading ? "下载中..." : "下载模型 (~150MB)"}
           </button>
           {downloadProgress && (
             <div style={{
-              fontSize: "12px",
+              fontSize: "var(--text-sm)",
               color: downloadProgress.includes("失败") ? "var(--error)" : "var(--success)",
               textAlign: "center",
             }}>
@@ -204,107 +172,67 @@ export default function FloatingAnswer() {
         </div>
       )}
 
-      {/* 答案列表 */}
-      <div style={{
-        flex: 1,
-        overflow: "auto",
-        padding: "12px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "12px",
-      }}>
+      {/* Content: answer list */}
+      <div className="floating-content">
         {answers.length === 0 && !isGenerating ? (
-          <div style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "12px",
-            color: "var(--text-muted)",
-          }}>
-            <div style={{ fontSize: "32px", opacity: 0.5 }}>🎙️</div>
-            <div style={{ fontSize: "13px" }}>
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <MicIcon size={36} />
+            </div>
+            <div className="empty-state-text">
               {isRunning ? "等待音频输入..." : "点击「启动」开始"}
             </div>
             {isRunning && (
-              <div style={{ fontSize: "11px", textAlign: "center", lineHeight: 1.6 }}>
+              <div className="empty-state-hint">
                 STT: {status.stt_provider} | LLM: {status.llm_provider}
               </div>
             )}
           </div>
         ) : (
           <>
-            {/* 生成中提示 */}
+            {/* Generating indicator */}
             {isGenerating && (
-              <div style={{
-                padding: "12px",
-                background: "var(--bg-card)",
-                borderRadius: "var(--radius)",
-                border: "1px solid var(--accent)",
-                color: "var(--accent)",
-                fontSize: "13px",
-                textAlign: "center",
-              }}>
-                ⏳ 正在生成答案...
+              <div className="generating-indicator">
+                <span className="loading-spinner" />
+                正在生成答案...
               </div>
             )}
 
-            {/* 答案卡片 */}
+            {/* Answer cards */}
             {answers.map((item) => (
-              <div
-                key={item.id}
-                style={{
-                  background: "var(--bg-card)",
-                  borderRadius: "var(--radius)",
-                  padding: "12px",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                {/* 问题 */}
-                <div style={{
-                  fontSize: "12px",
-                  color: "var(--text-secondary)",
-                  marginBottom: "8px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}>
-                  <span>🎤 {item.question}</span>
+              <div key={item.id} className="card-answer">
+                {/* Question label */}
+                <div className="card-header">
+                  <span className="card-label">
+                    <MicIcon size={10} />
+                    识别文本
+                  </span>
                   {item.latency_ms > 0 && (
-                    <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
-                      {item.latency_ms}ms
-                    </span>
+                    <span className="latency-tag">{item.latency_ms}ms</span>
                   )}
                 </div>
 
-                {/* 答案 */}
-                <div style={{
-                  fontSize: "13px",
-                  lineHeight: 1.7,
-                  color: "var(--text-primary)",
-                  whiteSpace: "pre-wrap",
-                }}>
-                  {item.answer}
+                {/* Transcription text */}
+                <div className="text-transcription" style={{ marginBottom: "var(--space-2xs)" }}>
+                  {item.question}
                 </div>
 
-                {/* 操作栏 */}
-                <div style={{
-                  marginTop: "8px",
-                  display: "flex",
-                  gap: "8px",
-                  justifyContent: "flex-end",
-                }}>
+                {/* Answer divider */}
+                <div className="card-header">
+                  <span className="card-label">参考</span>
+                </div>
+
+                {/* Answer text */}
+                <div className="text-answer">{item.answer}</div>
+
+                {/* Actions */}
+                <div className="card-actions">
                   <button
+                    className="btn btn-secondary"
                     onClick={() => handleCopy(item.answer, item.id)}
-                    style={{
-                      padding: "2px 8px",
-                      fontSize: "11px",
-                      background: copiedId === item.id ? "var(--success)" : "var(--bg-secondary)",
-                      color: copiedId === item.id ? "#fff" : "var(--text-secondary)",
-                      border: "1px solid var(--border)",
-                    }}
+                    style={{ fontSize: "var(--text-xs)", padding: "var(--space-4xs) var(--space-2xs)" }}
                   >
+                    {copiedId === item.id ? <CheckIcon size={10} /> : <CopyIcon size={10} />}
                     {copiedId === item.id ? "已复制" : "复制"}
                   </button>
                 </div>
@@ -314,39 +242,26 @@ export default function FloatingAnswer() {
         )}
       </div>
 
-      {/* 手动输入栏 */}
-      <div style={{
-        display: "flex",
-        gap: "8px",
-        padding: "8px 12px",
-        borderTop: "1px solid var(--border)",
-        background: "var(--bg-secondary)",
-      }}>
+      {/* Footer: manual input */}
+      <div className="floating-footer">
         <input
           ref={inputRef}
           type="text"
+          className="floating-input"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="输入问题文本，手动测试 LLM..."
-          style={{
-            flex: 1,
-            padding: "6px 10px",
-            fontSize: "12px",
-            background: "var(--bg-primary)",
-          }}
+          placeholder="输入文本，手动测试..."
         />
         <button
+          className="btn btn-icon"
           onClick={handleSend}
           disabled={!inputText.trim()}
           style={{
-            padding: "6px 16px",
-            fontSize: "12px",
-            background: inputText.trim() ? "var(--accent)" : "var(--bg-card)",
-            color: inputText.trim() ? "#fff" : "var(--text-muted)",
+            color: inputText.trim() ? "var(--accent)" : "var(--text-disabled)",
           }}
         >
-          发送
+          <SendIcon size={14} />
         </button>
       </div>
     </div>

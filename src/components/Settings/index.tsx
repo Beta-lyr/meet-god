@@ -1,287 +1,420 @@
 import { useState } from "react";
 import { useConfig } from "../../hooks/useConfig";
 import type { AppConfig } from "../../types";
+import {
+  MicIcon,
+  SettingsIcon,
+  EyeIcon,
+  EyeOffIcon,
+} from "../common/Icons";
 
 const LLM_FORMATS = [
-  { value: "openai", label: "OpenAI 格式", desc: "兼容 /v1/chat/completions（适用于 OpenAI、DeepSeek、通义千问、智谱、Ollama 等）" },
-  { value: "anthropic", label: "Anthropic 格式", desc: "Anthropic /v1/messages（Claude 系列）" },
+  {
+    value: "openai",
+    label: "OpenAI 格式",
+    desc: "兼容 /v1/chat/completions（适用于 OpenAI、DeepSeek、通义千问、智谱、Ollama 等）",
+  },
+  {
+    value: "anthropic",
+    label: "Anthropic 格式",
+    desc: "Anthropic /v1/messages（Claude 系列）",
+  },
 ];
 
 type Tab = "stt" | "llm" | "profile";
 
+const TAB_ITEMS: { key: Tab; label: string; icon: React.ReactNode }[] = [
+  { key: "stt", label: "语音识别", icon: <MicIcon size={13} /> },
+  { key: "llm", label: "大模型", icon: <SettingsIcon size={13} /> },
+  { key: "profile", label: "个人资料", icon: <SettingsIcon size={13} /> },
+];
+
 export default function Settings() {
   const { config, saveConfig } = useConfig();
   const [tab, setTab] = useState<Tab>("stt");
-  const [saving, setSaving] = useState(false);
-
   if (!config) return null;
 
   const handleSave = async (updates: Partial<AppConfig>) => {
-    setSaving(true);
     const newConfig = { ...config, ...updates };
     await saveConfig(newConfig);
-    setSaving(false);
   };
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      {/* Tab 栏 */}
-      <div style={{
-        display: "flex",
-        borderBottom: "1px solid var(--border)",
-        background: "var(--bg-secondary)",
-      }}>
-        {([["stt", "语音识别"], ["llm", "大模型"], ["profile", "资料"]] as [Tab, string][]).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            style={{
-              padding: "8px 16px",
-              fontSize: "13px",
-              background: "transparent",
-              color: tab === key ? "var(--accent)" : "var(--text-secondary)",
-              borderBottom: tab === key ? "2px solid var(--accent)" : "2px solid transparent",
-              borderRadius: 0,
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+    <div className="settings-window">
+      {/* Body: sidebar + content */}
+      <div className="settings-body">
+        {/* Sidebar */}
+        <div className="settings-sidebar">
+          <div className="tab-list-vertical">
+            {TAB_ITEMS.map((item) => (
+              <button
+                key={item.key}
+                className={`tab-item${tab === item.key ? " active" : ""}`}
+                onClick={() => setTab(item.key)}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-      {/* 内容区 */}
-      <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
-        {tab === "stt" && (
-          <SttSettings config={config} onSave={handleSave} saving={saving} />
-        )}
-        {tab === "llm" && (
-          <LlmSettings config={config} onSave={handleSave} saving={saving} />
-        )}
-        {tab === "profile" && (
-          <ProfileSettings config={config} onSave={handleSave} saving={saving} />
-        )}
+        {/* Content */}
+        <div className="settings-content">
+          {tab === "stt" && (
+            <SttSettings config={config} onSave={handleSave} />
+          )}
+          {tab === "llm" && (
+            <LlmSettings config={config} onSave={handleSave} />
+          )}
+          {tab === "profile" && (
+            <ProfileSettings config={config} onSave={handleSave} />
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function SttSettings({ config, onSave, saving }: { config: AppConfig; onSave: (u: Partial<AppConfig>) => Promise<void>; saving: boolean }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <Section title="语音识别模式">
-        <Select
-          label="Provider"
-          value={config.stt.provider}
-          options={[
-            { value: "whisper-local", label: "本地 Whisper（推荐）" },
-            { value: "openai", label: "OpenAI Whisper API" },
-          ]}
-          onChange={(v) => onSave({ stt: { ...config.stt, provider: v as AppConfig["stt"]["provider"] } })}
-        />
-      </Section>
+/* ============================================
+   STT Settings
+   ============================================ */
 
+function SttSettings({
+  config,
+  onSave,
+}: {
+  config: AppConfig;
+  onSave: (u: Partial<AppConfig>) => Promise<void>;
+}) {
+  return (
+    <div className="setting-group">
+      {/* Provider Selection */}
+      <div className="glass-card">
+        <div className="setting-group-title">语音识别模式</div>
+        <div className="setting-item">
+          <span className="setting-label">Provider</span>
+          <select
+            className="input-select"
+            value={config.stt.provider}
+            onChange={(e) =>
+              onSave({
+                stt: {
+                  ...config.stt,
+                  provider: e.target.value as AppConfig["stt"]["provider"],
+                },
+              })
+            }
+          >
+            <option value="whisper-local">本地 Whisper（推荐）</option>
+            <option value="openai">OpenAI Whisper API</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Whisper Local Config */}
       {config.stt.provider === "whisper-local" && (
-        <Section title="本地 Whisper 配置">
-          <Select
-            label="模型大小"
-            value={config.stt.local.model}
-            options={[
-              { value: "tiny", label: "tiny (~75MB, 最快)" },
-              { value: "base", label: "base (~150MB, 推荐)" },
-              { value: "small", label: "small (~500MB, 高精度)" },
-              { value: "medium", label: "medium (~1.5GB, 最高精度)" },
-            ]}
-            onChange={(v) => onSave({ stt: { ...config.stt, local: { ...config.stt.local, model: v as AppConfig["stt"]["local"]["model"] } } })}
-          />
-          <Input
-            label="语言"
-            value={config.stt.local.language}
-            placeholder="zh"
-            onChange={(v) => onSave({ stt: { ...config.stt, local: { ...config.stt.local, language: v } } })}
-          />
-        </Section>
+        <div className="glass-card">
+          <div className="setting-group-title">本地 Whisper 配置</div>
+
+          <div className="setting-item">
+            <span className="setting-label">模型大小</span>
+            <div className="pill-group">
+              {(["tiny", "base", "small", "medium"] as const).map((m) => (
+                <button
+                  key={m}
+                  className={`btn-pill${config.stt.local.model === m ? " active" : ""}`}
+                  onClick={() =>
+                    onSave({
+                      stt: {
+                        ...config.stt,
+                        local: { ...config.stt.local, model: m },
+                      },
+                    })
+                  }
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+            <span className="setting-description">
+              {config.stt.local.model === "tiny" && "~75MB, 最快"}
+              {config.stt.local.model === "base" && "~150MB, 推荐"}
+              {config.stt.local.model === "small" && "~500MB, 高精度"}
+              {config.stt.local.model === "medium" && "~1.5GB, 最高精度"}
+            </span>
+          </div>
+
+          <div className="setting-item">
+            <span className="setting-label">语言</span>
+            <input
+              className="input-text"
+              type="text"
+              value={config.stt.local.language}
+              placeholder="zh"
+              onChange={(e) =>
+                onSave({
+                  stt: {
+                    ...config.stt,
+                    local: { ...config.stt.local, language: e.target.value },
+                  },
+                })
+              }
+            />
+          </div>
+        </div>
       )}
 
+      {/* OpenAI API Config */}
       {config.stt.provider === "openai" && (
-        <Section title="API 配置">
-          <Input
+        <div className="glass-card">
+          <div className="setting-group-title">API 配置</div>
+
+          <SecretInput
             label="API Key"
             value={config.stt.api.api_key}
-            type="password"
             placeholder="sk-..."
-            onChange={(v) => onSave({ stt: { ...config.stt, api: { ...config.stt.api, api_key: v } } })}
+            onChange={(v) =>
+              onSave({
+                stt: {
+                  ...config.stt,
+                  api: { ...config.stt.api, api_key: v },
+                },
+              })
+            }
           />
-          <Input
-            label="API URL"
-            value={config.stt.api.api_url}
-            placeholder="https://api.openai.com/v1"
-            onChange={(v) => onSave({ stt: { ...config.stt, api: { ...config.stt.api, api_url: v } } })}
-          />
-        </Section>
+
+          <div className="setting-item">
+            <span className="setting-label">API URL</span>
+            <input
+              className="input-text"
+              type="text"
+              value={config.stt.api.api_url}
+              placeholder="https://api.openai.com/v1"
+              onChange={(e) =>
+                onSave({
+                  stt: {
+                    ...config.stt,
+                    api: { ...config.stt.api, api_url: e.target.value },
+                  },
+                })
+              }
+            />
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-function LlmSettings({ config, onSave, saving }: { config: AppConfig; onSave: (u: Partial<AppConfig>) => Promise<void>; saving: boolean }) {
+/* ============================================
+   LLM Settings
+   ============================================ */
+
+function LlmSettings({
+  config,
+  onSave,
+}: {
+  config: AppConfig;
+  onSave: (u: Partial<AppConfig>) => Promise<void>;
+}) {
   const primary = config.llm.primary;
   const handlePrimary = (updates: Partial<AppConfig["llm"]["primary"]>) => {
     onSave({ llm: { ...config.llm, primary: { ...primary, ...updates } } });
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <Section title="主模型">
-        <Select
-          label="API 格式"
-          value={primary.provider}
-          options={LLM_FORMATS.map((f) => ({ value: f.value, label: f.label }))}
-          onChange={(v) => handlePrimary({ provider: v as AppConfig["llm"]["primary"]["provider"] })}
-        />
-        <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "-6px" }}>
-          {LLM_FORMATS.find((f) => f.value === primary.provider)?.desc}
+    <div className="setting-group">
+      <div className="glass-card">
+        <div className="setting-group-title">主模型</div>
+
+        {/* API Format Pill Group */}
+        <div className="setting-item">
+          <span className="setting-label">API 格式</span>
+          <div className="pill-group">
+            {LLM_FORMATS.map((f) => (
+              <button
+                key={f.value}
+                className={`btn-pill${primary.provider === f.value ? " active" : ""}`}
+                onClick={() =>
+                  handlePrimary({
+                    provider: f.value as AppConfig["llm"]["primary"]["provider"],
+                  })
+                }
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <span className="setting-description">
+            {LLM_FORMATS.find((f) => f.value === primary.provider)?.desc}
+          </span>
         </div>
-        <Input
-          label="API URL"
-          value={primary.api_url}
-          placeholder={primary.provider === "anthropic" ? "https://api.anthropic.com" : "https://api.openai.com/v1"}
-          onChange={(v) => handlePrimary({ api_url: v })}
-        />
-        <Input
+
+        {/* API URL */}
+        <div className="setting-item">
+          <span className="setting-label">API URL</span>
+          <input
+            className="input-text"
+            type="text"
+            value={primary.api_url}
+            placeholder={
+              primary.provider === "anthropic"
+                ? "https://api.anthropic.com"
+                : "https://api.openai.com/v1"
+            }
+            onChange={(e) => handlePrimary({ api_url: e.target.value })}
+          />
+        </div>
+
+        {/* API Key */}
+        <SecretInput
           label="API Key"
           value={primary.api_key}
-          type="password"
           placeholder="sk-..."
           onChange={(v) => handlePrimary({ api_key: v })}
         />
-        <Input
-          label="模型"
-          value={primary.model}
-          placeholder={primary.provider === "anthropic" ? "claude-sonnet-4-20250514" : "gpt-4o-mini"}
-          onChange={(v) => handlePrimary({ model: v })}
-        />
-        <Input
-          label="Temperature"
-          value={String(primary.temperature)}
-          type="number"
-          onChange={(v) => handlePrimary({ temperature: parseFloat(v) || 0.7 })}
-        />
-      </Section>
-    </div>
-  );
-}
 
-function ProfileSettings({ config, onSave, saving }: { config: AppConfig; onSave: (u: Partial<AppConfig>) => Promise<void>; saving: boolean }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <Section title="个人资料">
-        <Textarea
-          label="简历内容"
-          value={config.profile.resume}
-          placeholder="粘贴你的简历内容，AI 将基于简历生成个性化答案..."
-          rows={6}
-          onChange={(v) => onSave({ profile: { ...config.profile, resume: v } })}
-        />
-        <Textarea
-          label="目标岗位 JD"
-          value={config.profile.job_description}
-          placeholder="粘贴目标岗位的职位描述..."
-          rows={4}
-          onChange={(v) => onSave({ profile: { ...config.profile, job_description: v } })}
-        />
-        <Textarea
-          label="自定义提示词"
-          value={config.profile.custom_prompt}
-          placeholder="可选，覆盖默认的 System Prompt..."
-          rows={3}
-          onChange={(v) => onSave({ profile: { ...config.profile, custom_prompt: v } })}
-        />
-      </Section>
-    </div>
-  );
-}
+        {/* Model Name */}
+        <div className="setting-item">
+          <span className="setting-label">模型</span>
+          <input
+            className="input-text"
+            type="text"
+            value={primary.model}
+            placeholder={
+              primary.provider === "anthropic"
+                ? "claude-sonnet-4-20250514"
+                : "gpt-4o-mini"
+            }
+            onChange={(e) => handlePrimary({ model: e.target.value })}
+          />
+        </div>
 
-// ========== 通用 UI 组件 ==========
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <h3 style={{
-        fontSize: "13px",
-        color: "var(--text-secondary)",
-        marginBottom: "12px",
-        fontWeight: 500,
-      }}>
-        {title}
-      </h3>
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {children}
+        {/* Temperature */}
+        <div className="setting-item">
+          <span className="setting-label">Temperature</span>
+          <input
+            className="input-text"
+            type="number"
+            value={String(primary.temperature)}
+            onChange={(e) =>
+              handlePrimary({ temperature: parseFloat(e.target.value) || 0.7 })
+            }
+          />
+        </div>
       </div>
     </div>
   );
 }
 
-function Input({ label, value, type = "text", placeholder, onChange }: {
-  label: string; value: string; type?: string; placeholder?: string; onChange: (v: string) => void;
+/* ============================================
+   Profile Settings
+   ============================================ */
+
+function ProfileSettings({
+  config,
+  onSave,
+}: {
+  config: AppConfig;
+  onSave: (u: Partial<AppConfig>) => Promise<void>;
 }) {
   return (
-    <div>
-      <label style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px", display: "block" }}>
-        {label}
-      </label>
-      <input
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ width: "100%", padding: "6px 10px", fontSize: "13px" }}
-      />
+    <div className="setting-group">
+      <div className="glass-card">
+        <div className="setting-group-title">个人资料</div>
+
+        <div className="setting-item">
+          <span className="setting-label">简历内容</span>
+          <textarea
+            className="input-textarea"
+            value={config.profile.resume}
+            placeholder="粘贴你的简历内容，AI 将基于简历生成个性化答案..."
+            rows={6}
+            onChange={(e) =>
+              onSave({ profile: { ...config.profile, resume: e.target.value } })
+            }
+          />
+        </div>
+
+        <div className="setting-item">
+          <span className="setting-label">目标岗位 JD</span>
+          <textarea
+            className="input-textarea"
+            value={config.profile.job_description}
+            placeholder="粘贴目标岗位的职位描述..."
+            rows={4}
+            onChange={(e) =>
+              onSave({
+                profile: { ...config.profile, job_description: e.target.value },
+              })
+            }
+          />
+        </div>
+
+        <div className="setting-item">
+          <span className="setting-label">自定义提示词</span>
+          <textarea
+            className="input-textarea"
+            value={config.profile.custom_prompt}
+            placeholder="可选，覆盖默认的 System Prompt..."
+            rows={3}
+            onChange={(e) =>
+              onSave({
+                profile: { ...config.profile, custom_prompt: e.target.value },
+              })
+            }
+          />
+        </div>
+      </div>
     </div>
   );
 }
 
-function Select({ label, value, options, onChange }: {
-  label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void;
-}) {
-  return (
-    <div>
-      <label style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px", display: "block" }}>
-        {label}
-      </label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ width: "100%", padding: "6px 10px", fontSize: "13px" }}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
+/* ============================================
+   Shared: Secret Input with Eye Toggle
+   ============================================ */
 
-function Textarea({ label, value, placeholder, rows = 3, onChange }: {
-  label: string; value: string; placeholder?: string; rows?: number; onChange: (v: string) => void;
+function SecretInput({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  onChange: (v: string) => void;
 }) {
+  const [visible, setVisible] = useState(false);
+
   return (
-    <div>
-      <label style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px", display: "block" }}>
-        {label}
-      </label>
-      <textarea
-        value={value}
-        placeholder={placeholder}
-        rows={rows}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: "100%",
-          padding: "6px 10px",
-          fontSize: "13px",
-          resize: "vertical",
-          minHeight: "60px",
-        }}
-      />
+    <div className="setting-item">
+      <span className="setting-label">{label}</span>
+      <div style={{ position: "relative" }}>
+        <input
+          className="input-secret"
+          type={visible ? "text" : "password"}
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <button
+          className="btn-icon"
+          type="button"
+          onClick={() => setVisible(!visible)}
+          style={{
+            position: "absolute",
+            right: "4px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            width: "24px",
+            height: "24px",
+          }}
+        >
+          {visible ? <EyeOffIcon size={12} /> : <EyeIcon size={12} />}
+        </button>
+      </div>
     </div>
   );
 }

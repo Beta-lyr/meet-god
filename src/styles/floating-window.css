@@ -1,0 +1,211 @@
+/* ============================================
+   Floating Answer Window
+   ============================================ */
+
+.floating-window {
+  width: 380px;
+  height: 520px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(18, 18, 26, 0.85);
+  border: var(--border-default);
+  border-radius: var(--radius-xl);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+  resize: both;
+  min-width: 320px;
+  min-height: 400px;
+}
+
+/* ---- Header ---- */
+
+.floating-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  padding: 0 var(--space-xs);
+  background: var(--glass-bg);
+  border-bottom: var(--border-subtle);
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.floating-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  -webkit-app-region: no-drag;
+}
+
+.floating-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  -webkit-app-region: no-drag;
+}
+
+.floating-title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  -webkit-app-region: drag;
+}
+
+/* ---- Content ---- */
+
+.floating-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-xs);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+/* ---- Footer ---- */
+
+.floating-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  height: 44px;
+  padding: var(--space-2xs) var(--space-xs);
+  background: var(--glass-bg);
+  border-top: var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.floating-input {
+  flex: 1;
+  padding: var(--space-2xs) var(--space-xs);
+  font-size: var(--text-sm);
+  background: var(--glass-bg);
+  border: var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+}
+.floating-input:focus {
+  border-color: var(--accent);
+  background: var(--glass-bg-hover);
+}
+.floating-input::placeholder {
+  color: var(--text-disabled);
+}
+
+/* ---- Download Prompt ---- */
+
+.download-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-xl);
+  text-align: center;
+  flex: 1;
+}
+
+.download-prompt-icon {
+  font-size: 32px;
+  opacity: 0.6;
+}
+
+.download-prompt-text {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  max-width: 260px;
+  line-height: 1.6;
+}
+
+/* ---- Streaming Cursor ---- */
+
+.streaming-cursor::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--accent);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink 1s step-end infinite;
+}
+
+/* ---- Opacity Control ---- */
+
+.opacity-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  padding: 0 var(--space-2xs);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.floating-header:hover .opacity-control {
+  opacity: 1;
+}
+
+/* ---- Error Banner ---- */
+
+.error-banner {
+  padding: var(--space-2xs) var(--space-xs);
+  background: var(--error-subtle);
+  color: var(--error);
+  font-size: var(--text-sm);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+
+/* ---- Empty State ---- */
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  color: var(--text-disabled);
+  padding: var(--space-xl);
+}
+
+.empty-state-icon {
+  font-size: 36px;
+  opacity: 0.4;
+}
+
+.empty-state-text {
+  font-size: var(--text-base);
+  color: var(--text-tertiary);
+}
+
+.empty-state-hint {
+  font-size: var(--text-xs);
+  color: var(--text-disabled);
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* ---- Generating Indicator ---- */
+
+.generating-indicator {
+  padding: var(--space-xs);
+  background: var(--accent-subtle);
+  border: var(--border-accent);
+  border-radius: var(--radius-md);
+  color: var(--accent-text);
+  font-size: var(--text-base);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2xs);
+  animation: card-enter 0.3s ease;
+}

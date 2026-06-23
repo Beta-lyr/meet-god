@@ -2,6 +2,7 @@ import { useState } from "react";
 import FloatingAnswer from "./components/FloatingAnswer";
 import Settings from "./components/Settings";
 import { useConfig } from "./hooks/useConfig";
+import { SettingsIcon } from "./components/common/Icons";
 
 type View = "answer" | "settings";
 
@@ -11,65 +12,52 @@ function App() {
 
   if (loading) {
     return (
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        height: "100%",
-        color: "var(--text-secondary)",
-      }}>
-        加载中...
+      <div className="empty-state">
+        <div className="loading-spinner" />
+        <span className="empty-state-text">加载中...</span>
       </div>
     );
   }
 
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
-      {/* 顶部导航栏 */}
-      <nav style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "6px 12px",
-        background: "var(--bg-secondary)",
-        borderBottom: "1px solid var(--border)",
-        // 允许拖拽移动窗口
-        ["WebkitAppRegion" as string]: "drag",
-      }}>
-        <div style={{ display: "flex", gap: "8px" }}>
+      {/* Top Navigation Bar */}
+      <nav className="floating-header">
+        <div className="floating-header-left">
           <button
+            className="btn btn-ghost"
             onClick={() => setView("answer")}
             style={{
-              padding: "4px 12px",
-              background: view === "answer" ? "var(--accent)" : "transparent",
-              color: view === "answer" ? "#fff" : "var(--text-secondary)",
-              ["WebkitAppRegion" as string]: "no-drag",
+              fontSize: "var(--text-sm)",
+              padding: "var(--space-3xs) var(--space-xs)",
+              color: view === "answer" ? "var(--accent-text)" : "var(--text-tertiary)",
+              background: view === "answer" ? "var(--accent-subtle)" : "transparent",
             }}
           >
-            答案
+            识别
           </button>
           <button
+            className="btn btn-ghost"
             onClick={() => setView("settings")}
             style={{
-              padding: "4px 12px",
-              background: view === "settings" ? "var(--accent)" : "transparent",
-              color: view === "settings" ? "#fff" : "var(--text-secondary)",
-              ["WebkitAppRegion" as string]: "no-drag",
+              fontSize: "var(--text-sm)",
+              padding: "var(--space-3xs) var(--space-xs)",
+              color: view === "settings" ? "var(--accent-text)" : "var(--text-tertiary)",
+              background: view === "settings" ? "var(--accent-subtle)" : "transparent",
             }}
           >
+            <SettingsIcon size={12} />
             设置
           </button>
         </div>
-        <div style={{
-          fontSize: "11px",
-          color: "var(--text-muted)",
-          ["WebkitAppRegion" as string]: "no-drag",
-        }}>
-          {config?.stt?.provider === "whisper-local" ? "本地" : "云端"} STT
+        <div className="floating-header-right">
+          <span className="status-badge">
+            {config?.stt?.provider === "whisper-local" ? "本地" : "云端"} STT
+          </span>
         </div>
       </nav>
 
-      {/* 内容区 */}
+      {/* Content Area */}
       <div style={{ flex: 1, overflow: "hidden" }}>
         {view === "answer" && <FloatingAnswer />}
         {view === "settings" && <Settings />}

@@ -1,0 +1,57 @@
+/* ============================================
+   Settings Panel
+   ============================================ */
+
+.settings-window {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 var(--space-xs);
+  background: var(--glass-bg);
+  border-bottom: var(--border-subtle);
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.settings-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.settings-sidebar {
+  width: 140px;
+  padding: var(--space-xs);
+  background: var(--glass-bg);
+  border-right: var(--border-subtle);
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.settings-content {
+  flex: 1;
+  padding: var(--space-sm);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2xs);
+  padding: var(--space-2xs) var(--space-xs);
+  background: var(--glass-bg);
+  border-top: var(--border-subtle);
+  flex-shrink: 0;
+}

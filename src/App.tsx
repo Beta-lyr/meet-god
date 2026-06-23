@@ -1,14 +1,45 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import FloatingAnswer from "./components/FloatingAnswer";
 import Settings from "./components/Settings";
+import Onboarding from "./components/Onboarding";
 import { useConfig } from "./hooks/useConfig";
 import { SettingsIcon } from "./components/common/Icons";
+import { listen } from "@tauri-apps/api/event";
 
 type View = "answer" | "settings";
 
 function App() {
   const [view, setView] = useState<View>("answer");
-  const { config, loading } = useConfig();
+  const { config, loading, saveConfig } = useConfig();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Check if onboarding is needed (no API key configured)
+  useEffect(() => {
+    if (!loading && config) {
+      const hasApiKey =
+        config.llm.primary.api_key && config.llm.primary.api_key.trim() !== "";
+      setShowOnboarding(!hasApiKey);
+    }
+  }, [loading, config]);
+
+  // Listen for navigate events from tray menu
+  useEffect(() => {
+    const setup = async () => {
+      const unlisten = await listen<string>("navigate", (event) => {
+        if (event.payload === "settings") {
+          setView("settings");
+        }
+      });
+      return unlisten;
+    };
+    let unlistenFn: (() => void) | undefined;
+    setup().then((fn) => {
+      unlistenFn = fn;
+    });
+    return () => {
+      unlistenFn?.();
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -16,6 +47,18 @@ function App() {
         <div className="loading-spinner" />
         <span className="empty-state-text">加载中...</span>
       </div>
+    );
+  }
+
+  if (showOnboarding && config) {
+    return (
+      <Onboarding
+        config={config}
+        onComplete={(newConfig) => {
+          saveConfig(newConfig);
+          setShowOnboarding(false);
+        }}
+      />
     );
   }
 

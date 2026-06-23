@@ -11,6 +11,7 @@ use pipeline::engine::{PipelineEngine, PipelineEvent};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::Emitter;
+use tauri::Manager;
 use tokio::sync::Mutex;
 
 /// 应用状态，通过 Tauri 管理
@@ -365,6 +366,105 @@ async fn process_audio_text(
     }
 }
 
+/// 切换窗口显示/隐藏
+#[tauri::command]
+async fn toggle_window_visibility(app_handle: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app_handle.get_webview_window("main") {
+        if window.is_visible().unwrap_or(false) {
+            window.hide().map_err(|e| e.to_string())?;
+        } else {
+            window.show().map_err(|e| e.to_string())?;
+            window.set_focus().map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+/// 设置窗口不显示在任务栏
+#[tauri::command]
+fn set_no_taskbar_icon(window: tauri::Window) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        stealth::window::set_no_taskbar_icon(hwnd.0 as isize)?;
+    }
+    Ok(())
+}
+
+/// 设置窗口不抢夺焦点
+#[tauri::command]
+fn set_no_activate(window: tauri::Window) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        stealth::window::set_no_activate(hwnd.0 as isize)?;
+    }
+    Ok(())
+}
+
+/// 切换鼠标穿透模式
+#[tauri::command]
+fn set_click_through(window: tauri::Window, enabled: bool) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        stealth::window::set_click_through(hwnd.0 as isize, enabled)?;
+    }
+    Ok(())
+}
+
+/// 注册全局快捷键（前端调用，备用方案）
+#[tauri::command]
+async fn register_hotkeys(app_handle: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+
+    let app_handle_clone = app_handle.clone();
+
+    // Ctrl+Shift+H -> 切换窗口可见性
+    app_handle
+        .global_shortcut()
+        .on_shortcut(
+            Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyH),
+            move |_app, _shortcut, event| {
+                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    let _ = app_handle_clone.emit("hotkey", serde_json::json!({ "action": "toggle_visibility" }));
+                }
+            },
+        )
+        .map_err(|e| e.to_string())?;
+
+    let app_handle_clone2 = app_handle.clone();
+
+    // Ctrl+Shift+M -> 切换静音
+    app_handle
+        .global_shortcut()
+        .on_shortcut(
+            Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyM),
+            move |_app, _shortcut, event| {
+                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    let _ = app_handle_clone2.emit("hotkey", serde_json::json!({ "action": "toggle_mute" }));
+                }
+            },
+        )
+        .map_err(|e| e.to_string())?;
+
+    // Ctrl+Shift+Escape -> 紧急退出
+    app_handle
+        .global_shortcut()
+        .on_shortcut(
+            Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Escape),
+            move |app, _shortcut, event| {
+                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    app.exit(0);
+                }
+            },
+        )
+        .map_err(|e| e.to_string())?;
+
+    tracing::info!("全局快捷键已注册");
+    Ok(())
+}
+
 /// 构建 System Prompt
 fn build_system_prompt(profile: &config::schema::ProfileConfig) -> String {
     if !profile.custom_prompt.is_empty() {
@@ -389,6 +489,156 @@ fn build_system_prompt(profile: &config::schema::ProfileConfig) -> String {
     prompt
 }
 
+// ========== 系统托盘 ==========
+
+/// 创建系统托盘菜单
+fn create_tray_menu(app: &tauri::AppHandle) -> tauri::menu::Menu<tauri::Wry> {
+    use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
+
+    // 获取当前管线运行状态
+    let running = {
+        let state = app.state::<AppState>();
+        // 使用 try_lock 避免在同步上下文中阻塞
+        state.running.try_lock().map(|r| *r).unwrap_or(false)
+    };
+
+    let show_hide = if running {
+        MenuItemBuilder::with_id("toggle_visibility", "隐藏主窗口")
+            .build(app)
+            .unwrap()
+    } else {
+        MenuItemBuilder::with_id("toggle_visibility", "显示主窗口")
+            .build(app)
+            .unwrap()
+    };
+
+    let start_stop = if running {
+        MenuItemBuilder::with_id("toggle_pipeline", "停止")
+            .build(app)
+            .unwrap()
+    } else {
+        MenuItemBuilder::with_id("toggle_pipeline", "开始")
+            .build(app)
+            .unwrap()
+    };
+
+    let mute_item = MenuItemBuilder::with_id("toggle_mute", "静音")
+        .build(app)
+        .unwrap();
+
+    let settings_item = MenuItemBuilder::with_id("open_settings", "设置")
+        .build(app)
+        .unwrap();
+
+    let quit_item = MenuItemBuilder::with_id("quit", "退出")
+        .build(app)
+        .unwrap();
+
+    let separator1 = PredefinedMenuItem::separator(app).unwrap();
+    let separator2 = PredefinedMenuItem::separator(app).unwrap();
+
+    MenuBuilder::new(app)
+        .item(&show_hide)
+        .item(&separator1)
+        .item(&start_stop)
+        .item(&mute_item)
+        .item(&separator2)
+        .item(&settings_item)
+        .item(&quit_item)
+        .build()
+        .unwrap()
+}
+
+/// 设置系统托盘
+fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri::tray::TrayIconBuilder;
+
+    let menu = create_tray_menu(app);
+
+    let _tray = TrayIconBuilder::new()
+        .icon(app.default_window_icon().cloned().unwrap())
+        .menu(&menu)
+        .tooltip("Meet God")
+        .on_menu_event(move |app, event| {
+            let id = event.id().as_ref();
+            match id {
+                "toggle_visibility" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        if window.is_visible().unwrap_or(false) {
+                            let _ = window.hide();
+                        } else {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                }
+                "toggle_pipeline" => {
+                    let state = app.state::<AppState>();
+                    let running = state.running.try_lock().map(|r| *r).unwrap_or(false);
+                    if running {
+                        let app_handle = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let state = app_handle.state::<AppState>();
+                            *state.running.lock().await = false;
+                            *state.audio_handle.lock().await = None;
+                            *state.pipeline.lock().await = None;
+                            let _ = app_handle.emit("pipeline-event", PipelineEvent::StateChange {
+                                state: "stopped".to_string(),
+                            });
+                        });
+                    } else {
+                        let app_handle = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = start_pipeline(
+                                app_handle.state::<AppState>(),
+                                app_handle.clone(),
+                            ).await;
+                        });
+                    }
+                }
+                "toggle_mute" => {
+                    let app_handle = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let _ = toggle_mute(app_handle.state::<AppState>()).await;
+                    });
+                }
+                "open_settings" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                        let _ = app.emit("navigate", "settings");
+                    }
+                }
+                "quit" => {
+                    app.exit(0);
+                }
+                _ => {}
+            }
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let tauri::tray::TrayIconEvent::Click {
+                button: tauri::tray::MouseButton::Left,
+                button_state: tauri::tray::MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let app = tray.app_handle();
+                if let Some(window) = app.get_webview_window("main") {
+                    if window.is_visible().unwrap_or(false) {
+                        let _ = window.hide();
+                    } else {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+            }
+        })
+        .build(app)?;
+
+    tracing::info!("系统托盘已创建");
+    Ok(())
+}
+
 // ========== Tauri 应用入口 ==========
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -399,6 +649,7 @@ pub fn run() {
     tracing::info!("配置已加载");
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState {
             config: Mutex::new(app_config),
             audio_handle: Mutex::new(None),
@@ -420,9 +671,73 @@ pub fn run() {
             toggle_mute,
             get_pipeline_status,
             process_audio_text,
+            toggle_window_visibility,
+            set_no_taskbar_icon,
+            set_no_activate,
+            set_click_through,
+            register_hotkeys,
         ])
-        .setup(|_app| {
-            // 窗口初始化由前端挂载后通过 set_invisible_to_capture 命令完成
+        .setup(|app| {
+            // ========== 窗口隐蔽样式 ==========
+            if let Some(window) = app.get_webview_window("main") {
+                #[cfg(target_os = "windows")]
+                {
+                    if let Ok(hwnd) = window.hwnd() {
+                        let h = hwnd.0 as isize;
+                        // 设置任务栏不可见
+                        let _ = stealth::window::set_no_taskbar_icon(h);
+                        // 设置不抢夺焦点
+                        let _ = stealth::window::set_no_activate(h);
+                        // 设置对屏幕捕获不可见
+                        let _ = stealth::window::set_invisible_to_capture(h);
+                    }
+                }
+            }
+
+            // ========== 全局快捷键 ==========
+            {
+                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+
+                let app_handle = app.handle().clone();
+
+                // Ctrl+Shift+H -> 切换窗口可见性
+                let ah1 = app_handle.clone();
+                app.global_shortcut().on_shortcut(
+                    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyH),
+                    move |_app, _shortcut, event| {
+                        if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                            let _ = ah1.emit("hotkey", serde_json::json!({ "action": "toggle_visibility" }));
+                        }
+                    },
+                )?;
+
+                // Ctrl+Shift+M -> 切换静音
+                let ah2 = app_handle.clone();
+                app.global_shortcut().on_shortcut(
+                    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyM),
+                    move |_app, _shortcut, event| {
+                        if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                            let _ = ah2.emit("hotkey", serde_json::json!({ "action": "toggle_mute" }));
+                        }
+                    },
+                )?;
+
+                // Ctrl+Shift+Escape -> 紧急退出
+                app.global_shortcut().on_shortcut(
+                    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Escape),
+                    move |app, _shortcut, event| {
+                        if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                            app.exit(0);
+                        }
+                    },
+                )?;
+
+                tracing::info!("全局快捷键已注册");
+            }
+
+            // ========== 系统托盘 ==========
+            setup_tray(app.handle())?;
+
             Ok(())
         })
         .run(tauri::generate_context!())

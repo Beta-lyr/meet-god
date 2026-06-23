@@ -12,7 +12,10 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # Tauri 框架
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = ["tray-icon", "image-ico", "image-png"] }
+
+# Tauri 插件
+tauri-plugin-global-shortcut = "2"
 
 # 序列化
 serde = { version = "1", features = ["derive"] }

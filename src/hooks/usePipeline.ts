@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AnswerEntry, PipelineStatus } from "../types";
 
 /// 管线事件类型（与 Rust 后端 PipelineEvent 对齐）
@@ -69,6 +70,27 @@ export function usePipeline() {
         }
       });
       unlisteners.push(unlisten);
+
+      // 监听全局快捷键事件
+      const unlistenHotkey = await listen<{ action: string }>("hotkey", (event) => {
+        const appWindow = getCurrentWindow();
+        switch (event.payload.action) {
+          case "toggle_visibility":
+            appWindow.isVisible().then((visible) => {
+              if (visible) {
+                appWindow.hide();
+              } else {
+                appWindow.show();
+                appWindow.setFocus();
+              }
+            });
+            break;
+          case "toggle_mute":
+            toggleMute();
+            break;
+        }
+      });
+      unlisteners.push(unlistenHotkey);
     };
 
     setup();
